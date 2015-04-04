@@ -1,4 +1,4 @@
-Enter file contents here#! perl
+#! perl
 
 use strict;
 use warnings;
@@ -56,6 +56,8 @@ my $log_count = 0;
 ### agelog
 #######
 
+my $AGELOG_MES = "";
+
 sub next_file( $$$ ) {
   my ( $body, $count, $ext ) = @_;
   if ( not defined($OPTS{".agelogformat"}) ) {
@@ -69,6 +71,7 @@ sub rm_next_next_file ( $$$ ) {
   $count++;
   my ( $next_next_file ) = next_file( $body, $count, $ext);
   if ( -e $next_next_file ) {
+    $AGELOG_MES .= "<time>agelog: rm $next_next_file\n";
     system("rm $next_next_file");
   }
 }
@@ -99,6 +102,7 @@ sub archive_LOG () {
   }
 
   flush LOG;
+  $AGELOG_MES .= sprintf( "<time>agelog: %s %s %s\n", "cp", $OPTS{log}, next_aLOG_file( $OPTS{log}) );
   system("cp", $OPTS{log}, next_aLOG_file( $OPTS{log}) );
   open(LOG, ">", $OPTS{log});
 }
@@ -112,6 +116,8 @@ sub count_line ( $ ) {
 #####
 ### LOG
 #####
+
+sub out_LOG ( $$@ );
 
 sub out_LOG ( $$@ ) {
     my ( $level, $format, @args ) = @_;
@@ -144,9 +150,14 @@ sub out_LOG ( $$@ ) {
       if ( $OPTS{log} and $level <= $INFO) {
 	$log_count += count_line($before_log);
 	$log_count += count_line($mes);
-	if ( $log_count > $OPTS{ageloglines} ) {
+	if ( defined($OPTS{ageloglines}) and $log_count > $OPTS{ageloglines} ) {
+	  $AGELOG_MES = '';
+	  $AGELOG_MES .= sprintf( "<time>agelog: log lines exceed ageloglines: %d > %d\n", $log_count, $OPTS{ageloglines} );
+
 	  archive_LOG();
 	  $log_count = 0;
+	  out_LOG $DEBUG, "%s", $AGELOG_MES;
+	  $AGELOG_MES = '';
 	}
 	print LOG $before_log;
 	print LOG $mes;
@@ -249,6 +260,23 @@ sub out_HB ( $ ) {
 # ログには、
 # コンソールには、"            \r"を出力。次に何か出力する前に "                         \n"を出力
 }
+
+sub open_LOG ( $ ) {
+  my ( $file ) = @_;
+  $log_count = 0;
+  if ( $file ) {
+    open LOG, "<", $file;
+    while ( <LOG> ) {
+      $log_count++;
+    }
+    open LOG, ">>", $file;
+    LOG->autoflush(1);
+    out_LOG $DEBUG, "agelog: log_count=%d\n", $log_count;
+  } else {
+    open LOG, ">", "/dev/null";
+  }
+}
+
 
 sub read_file ( $ ) {
   my ($file) = @_;
@@ -1025,7 +1053,7 @@ sub sync_mtime2 ( $$ ) {
     my $a_type = $type_order{attr_type($a->{attr})};
     my $b_type = $type_order{attr_type($b->{attr})};
 
-    if ($a_type eq $b_type) {
+    if ($a_type eq $b_type and $a_type != 5) {
       return attr_mtime($b->{attr}) <=> attr_mtime($a->{attr});
     } else {
       return $a_type <=> $b_type;
@@ -1722,12 +1750,15 @@ sub reload_conf ( ;$$ ) {
 
     use IO::Handle;
 
-    if ( $OPTS{log} ) {
-	open LOG, ">>", $OPTS{log};
-	LOG->autoflush(1);
-    } else {
-	open LOG, ">", "/dev/null";
-    }
+#    if ( $OPTS{log} ) {
+      open_LOG( $OPTS{log} );
+#	$log_count=`wc -l $OPTS{log}`;
+#	open LOG, ">>", $OPTS{log};
+#	LOG->autoflush(1);
+#	out_LOG $INFO, "agelog: log_count=%d\n", $log_count;
+#    } else {
+#	open LOG, ">", "/dev/null";
+#    }
 
     if ( $OPTS{statuslog} ) {
 	open STATUSLOG, ">", $OPTS{statuslog};
@@ -1972,9 +2003,8 @@ __END__
 #	'diffrelax=i',	# sec
 #	以下の行は status.log に出す。
 #====================
-#15/03/07_22:30:00: different type: //fileserv-kawa7.ad.flab.fujitsu.co.jp/F229101/shared/その他/上田チーム進捗(file) /d/09-takeout/02-共有フォルダ最新/0-報告/グループ会向け下書き(dir)
-#15/03/07_22:30:00: try reconnect: \\fileserv-kawa7.ad.flab.fujitsu.co.jp\F229101\shared\その他\上田チーム進捗
-#15/03/07_22:30:00: different type: //fileserv-kawa7.ad.flab.fujitsu.co.jp/F229101/shared/その他/上田チーム進捗(file) /d/09-takeout/02-共有フォルダ最新/0-報告/グループ会向け下書き(dir)
+#15/03/07_22:30:00: different type: ... (file) ...(dir)
+#15/03/07_22:30:00: try reconnect: ...
 #15/03/07_22:30:00: Connection may broken! at sync.pl line 1539.
 #====================
 # バグ
@@ -1985,6 +2015,7 @@ __END__
 #	backup は連続でしないようにしたい。前のバックアップをlastに記録しておこうか？書き込みに失敗した時に最後のバージョンがあったほうがうれしいか？
 # リファクタリング
 #	day_limitは引数で引き回しているが、 $OPTS{day_limit}でよかった。
-#	robocopy /e /timfix \\fileserv-kawa7.ad.flab.fujitsu.co.jp\F229101\shared\その他\上田チーム進捗 D:\01-shinchoku\03-グループ会向け下書き
+#	robocopy /e /timfix \\remote.server\remote\dir D:\local\dir
 
 
+# Version 1.0 2015.03.11
