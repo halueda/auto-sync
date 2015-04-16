@@ -10,7 +10,6 @@ use warnings;
 #  ファイルとディレクトリが違っていて両方にあったら、エラーをログに出力（ディレクトリ側はもう入らない）
 #  ディレクトリ、ファイル、symlink以外（？）は、エラーをログに出力
 
-
 my (%OPTS, %OPTS_RAW);
 
 use Getopt::Long;
@@ -71,8 +70,8 @@ sub rm_next_next_file ( $$$ ) {
   $count++;
   my ( $next_next_file ) = next_file( $body, $count, $ext);
   if ( -e $next_next_file ) {
-    $AGELOG_MES .= "<time>agelog: rm $next_next_file\n";
-    system("rm $next_next_file");
+    $AGELOG_MES .= "<time>agelog: /bin/rm $next_next_file\n";
+    system("/bin/rm $next_next_file");
   }
 }
 
@@ -102,9 +101,12 @@ sub archive_LOG () {
   }
 
   flush LOG;
-  $AGELOG_MES .= sprintf( "<time>agelog: %s %s %s\n", "cp", $OPTS{log}, next_aLOG_file( $OPTS{log}) );
-  system("cp", $OPTS{log}, next_aLOG_file( $OPTS{log}) );
-  open(LOG, ">", $OPTS{log});
+  my $nextfile = next_aLOG_file( $OPTS{log});
+  $AGELOG_MES .= sprintf( "<time>agelog: %s %s %s\n", "/bin/cp", $OPTS{log}, $nextfile );
+  if (system("/bin/cp", $OPTS{log}, $nextfile ) == 0) {
+    $AGELOG_MES .= sprintf( "<time>agelog: reopen  %s\n", $OPTS{log});
+    open(LOG, ">", $OPTS{log});
+  }
 }
 
 sub count_line ( $ ) {
@@ -156,7 +158,7 @@ sub out_LOG ( $$@ ) {
 
 	  archive_LOG();
 	  $log_count = 0;
-	  out_LOG $DEBUG, "%s", $AGELOG_MES;
+	  out_LOG $INFO, "%s", $AGELOG_MES;
 	  $AGELOG_MES = '';
 	}
 	print LOG $before_log;
@@ -1980,7 +1982,7 @@ __END__
 #	files の _sync_conf.txtの読み込みに失敗したら、全体の失敗ではなく、警告だけ出してスキップして欲しい
 #	day_limitで消す時にはそういうメッセージにする
 #	day_limitで消す時に下記のメッセージが出た。(to dustbox)は何度も出ているが上書きされて残らない様子
-#       (to dustbox)/bin/mv: cannot move `/d/08-work/委託提案/20140108-アプリ事本' to `/d/syncdust/150127_090403_委託提案/./20140108-アプリ事本': Directory not empty
+#       (to dustbox)/bin/mv: cannot move `...' to `...': Directory not empty
 #	ローカルで新規のファイルを作ると、リモートのパーミッションが変で読めない
 #	remoteからのコピーに伴うバックアップ前にオリジナルをstatして失敗したら、die ⇒ cpに失敗したら終わるようになったので入れなくていいや
 #	remove_treeという関数はなくて、delete_treeなのに、ログにはremove_treeと出力している
@@ -2016,6 +2018,8 @@ __END__
 # リファクタリング
 #	day_limitは引数で引き回しているが、 $OPTS{day_limit}でよかった。
 #	robocopy /e /timfix \\remote.server\remote\dir D:\local\dir
+#	system() を使うのはやめよう。mysystem（）を作って、LOGにエラーを書き出す
+#	system() を使うのはやめよう。cygwinに依存したくない。といいつつ、diffとかsedとか気楽に使っている...
 
 
 # Version 1.0 2015.03.11
