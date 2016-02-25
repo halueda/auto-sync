@@ -780,11 +780,16 @@ sub defined_older ( $$ ) {
   }
 
 sub choose_newer ( $$ ) {
+  #$!$!$! うまくアクセスできないと、 24/05/20 15:07:31 (= 1716185251 )になってしまい、新しく見えてしまう
+  #$!$!$! うまくアクセスできないと、 27/09/05 15:48:15 (= ???? )になってしまい、新しく見えてしまう
+  #$!$!$! 2015/09/18_17:38:26にperlを起動すると、27/09/05 10:04:40になってしまう。全てではない //fileserv-kawa7だけ //nas.kawasaki, //teamsite //ueda-pc2 は大丈夫。different typeが出るのも//fileserv-kawa7.ad. だけ。同じユーザーによる複数のユーザー名での接続もそこだけ。perlの起動時に何かしているかも知れない。
+  #$!$!$! 2015/09/18_17:48:26にperlを起動すると、27/09/05 10:04:40 スリープしたが関係ない
+  #$!$!$! nowより1年以上未来だったら信用しないとかquickfix してみるか
     my ( $a_attr, $b_attr ) = @_;
-    if (! defined($a_attr)) {
+    if (! defined($a_attr) or attr_mtime($a_attr) > time() + 3600*24*365 ) {
       return $b_attr;
     }
-    if (!defined($b_attr) ) {
+    if (! defined($b_attr) or attr_mtime($b_attr) > time() + 3600*24*365 ) {
       return $a_attr;
     }
     if ( abs(attr_mtime($a_attr) - attr_mtime($b_attr)) < $OPTS{diffrelax} ) {
@@ -1246,6 +1251,14 @@ sub sync_file ( $$$$$$$$ ) {
     #  remoteを転送。バックアップはしない
     #  lastはremoteを使う
     copy_file( $file, $remote_attr, $local_file, $local, $day_limit, undef, $last_files );
+
+    # conflict_snapファイルを作る。diffをするならここで。
+    if ( ! $OPTS{dryrun} ) {
+      my $conflict_snap_path = $dirname .$basename . ".conflict" . get_toptimestring1() . "snap" . $extname;
+      system("/bin/cp", "--preserve=timestamps,links", $local_file, $conflict_snap_path) == 0
+	or die "copy_file failed: $local_file, $conflict_snap_path: $!";
+    }
+
     $last_files->{$file} = $remote_attr;
     $last_files->{"/last_update"} = 1;
     #  コンフリクトファイルのlastを作ると、remoteでdeleteしたように見えてしまうのでしない。
@@ -1603,10 +1616,10 @@ sub sync_dir_2 ( $$$$ ) {
   # 今書き換えてしまったので、オリジナルの時刻（の新しい方）に両方を合わせる。
   my $this_attr = $dir_attr->{attr};
 
-  if ( $last_files->{"/UPDATE_LOCAL"} ) {
+  if ( $last_files->{"/UPDATE_LOCAL"}  or newer( $dir_attr->{local_attr},  $this_attr) ) {
     sync_mtime2( $this_attr, $local ) ;
   }
-  if ( $last_files->{"/UPDATE_REMOTE"} ) {
+  if ( $last_files->{"/UPDATE_REMOTE"} or newer( $dir_attr->{remote_attr}, $this_attr) ) {
     sync_mtime2( $this_attr, $remote ) ;
   }
 }
@@ -1649,7 +1662,8 @@ sub sync ( $$$ ) {
 				  attr => $attr };
 	    sync_dir_2( $remote, $local, $this_dir_attr, $day_limit);
 
-	    if ( not -e "$local/_original" ) {
+	    if ( not -e "$local/_original.lnk" ) {
+	      out_LOG $INFO, "making $local/_original.lnk\n";
 #	      symlink $remote, "$local/_original";	# windowsからアクセスできない。そもそも .lnk がついてないといけない
 	      my $originalpath = `/bin/cygpath -w '$local/_original.lnk'`;   # まずパス変換
 	      chomp $originalpath;
@@ -1660,8 +1674,11 @@ sub sync ( $$$ ) {
 	      out_LOG $DEBUG, "lnkcmd: %s\n", $cmd;
 	      system( $cmd ); # 外部コマンドを使う。
 #	      sync_mtime2( $this_dir_attr, $local ) ;	# this_dir_attr が arrayref じゃないと怒られる
-	      sync_mtime2( $local_attr, $local ) ; 	# こっちかな？
+	      sync_mtime2( $attr, $local ) ; 	# こっちかな？
 	    }
+#	    out_LOG $INFO, "top dir sync: newer  %s\n", attr_mtime_str($attr);
+#	    out_LOG $INFO, "top dir sync: local  %s -> %s\n", attr_mtime_str($this_dir_attr->{local_attr}),  attr_mtime_str(attr( $local ));
+#	    out_LOG $INFO, "top dir sync: remote %s -> %s\n", attr_mtime_str($this_dir_attr->{remote_attr}), attr_mtime_str(attr( $remote ));
 
 	    return;
 	}
@@ -1692,7 +1709,7 @@ sub diff_log ( $$$ ) {
   write_file( $oldfile, $old);
   write_file( $nowfile, $now);
 
-  my $diff = `/bin/diff -U 1 $oldfile $nowfile | /bin/sed 1,3d`;
+  my $diff = `/bin/diff --minimal --horizon-lines=7 -U 1 $oldfile $nowfile | /bin/sed 1,3d`; # possibly try diff --minimal
   system("/bin/rm $oldfile $nowfile");
   return "--- old; +++ now\n" . $diff;
 }
@@ -1762,6 +1779,7 @@ sub reload_conf ( ;$$ ) {
 #	open LOG, ">", "/dev/null";
 #    }
 
+    # $!$!$! 本当は、statuslog は引き続きの時は開きなおさないほうが良い。serviceの１サイクルごとに消えてしまうので。
     if ( $OPTS{statuslog} ) {
 	open STATUSLOG, ">", $OPTS{statuslog};
 	STATUSLOG->autoflush(1);
@@ -1786,13 +1804,15 @@ sub reload_conf ( ;$$ ) {
     @files = map {
       my $remote_attr = attr($_->{remote});
       my $local_attr  = attr($_->{local});
+#     remoteが切れていたら、最外周のループに戻る
       $_ -> {attr} = choose_newer( $remote_attr, $local_attr );
 #      my ($top,$part) = dir_part( $_->{local} );
 #      my $dir = dirname($part);
       my $dir = basename( $_->{local} );
-      $_->{Mtime} = attr_mtime_str( $_->{attr} ) . " $dir";
-#      $_->{MRtime} = attr_mtime_str( $remote_attr );
-#      $_->{MLtime} = attr_mtime_str( $local_attr );
+      $_->{Name} = "$dir";
+      $_->{"~time"} = attr_mtime_str( $_->{attr} );
+#      $_->{"~Rtime"} = attr_mtime_str( $remote_attr );
+#      $_->{"~Ltime"} = attr_mtime_str( $local_attr );
       $_;
     } @files;
     @files = sort { defined_older($a->{attr}, $b->{attr}) } @files;
@@ -1818,8 +1838,11 @@ sub reload_conf ( ;$$ ) {
 	if $new_OPTS_json ne $old_OPTS_json;
 #    out_LOG $INFO, "files: %s\n", $new_FILES_json_print
     if ( $old_files_json ) {
-      out_LOG $INFO, "files: %s\n", diff_log("/tmp/files", $old_files_json_print, $new_FILES_json_print)
-	if $new_files_json ne $old_files_json;
+      if ($new_files_json ne $old_files_json) {
+	$new_FILES_json_print =~ s/"(rpass|ruser|verbose|rdustbox|ldustbox|)" : [^\n]*\n//g;
+	$old_files_json_print =~ s/"(rpass|ruser|verbose|rdustbox|ldustbox|)" : [^\n]*\n//g;
+	out_LOG $INFO, "files: %s\n", diff_log("/tmp/files", $old_files_json_print, $new_FILES_json_print);
+      }
     } else {
       out_LOG $INFO, "files: %s\n",  $new_FILES_json_print;
     }
@@ -2002,6 +2025,8 @@ __END__
 #	プログラムのリランをするオプション（SIGUSR1シグナル）
 #	filesのログは、全データでなく、diff -u 前後は1行が良い。
 # 未テスト
+#	もしも、ディレクトリの時刻がずれてたらこっそり直したほうが良い。
+#	verboseとか rdustbox, ldustbox, rpassでdiffが混乱してしまう。もう少し長めにdiffチェックして欲しい --horizon-lines=7してみた --minimalはまだ
 #	'diffrelax=i',	# sec
 #	以下の行は status.log に出す。
 #====================
@@ -2010,17 +2035,112 @@ __END__
 #15/03/07_22:30:00: Connection may broken! at sync.pl line 1539.
 #====================
 # バグ
+#	rpassがないのに再接続をしようとして、何度も失敗する⇒ロックアウトする？
 #	問題。sharepoint WebDAV はファイルを更新しても時刻が見えない。ここは、対象外にするか、readonlyにした方がよい。あるいは、更新はlocalだけにする。remoteでは消して作る。
 #	copy_treeでコピーすると、_last.jsonファイルがアップロードされてしまう
+#	LAST時刻を取ってから cp -p で LOCAL->REMOTE するまでの間に更新がかかると、conflictに見えてしまう。その後auto-saveできない。⇒ コピーした後のREMOTEの日付をLASTにすべき。
+#	dryrunしたあと、本番をすると、間違った_lastファイルの影響で、ローカルが全て正しいことになってしまう。(conflictも作らないし、余分のフォルダはリモートもローカルも消してしまう！）。以下ログ
+## 
+## 15/05/18_13:32:53: files: --- old; +++ now
+##        "except" : "(~$|^#|^~\\$|\\.[lL][nN][kK]$)",
+## -      "local" : " /d/gnupack_devel-11.00/home/lib/emacs/lisp",
+## +            "local" : "/d/gnupack_devel-11.00/home/lib/emacs/lisp",
+##              "remote" : "//ueda-pc2.g01.fujitsu.local/home/lib/emacs/lisp",
+## 
+## 15/05/18_13:33:44: ---
+## 15/05/18_13:33:44: LOCAL:  /d/gnupack_devel-11.00/home/lib/emacs/lisp
+## 15/05/18_13:33:44: toptimestring: 150518_133344_lisp
+## 15/05/18_13:33:48:  CONFLICT found: ueda-misc.el (LOCAL 15/05/15 20:28:27 REMOTE 14/10/03 15:56:59 LAST [NO TIME INFO]     )
+## 15/05/18_13:33:48:  rename conflict file: ueda-misc.el -> /d/gnupack_devel-11.00/home/lib/emacs/lisp/ueda-misc.conflict150518_133344.el (dryrun)
+## 15/05/18_13:33:48: copy_file (dryrun) LOCAL  <- REMOTE ueda-misc.el
+## 15/05/18_13:33:48:  CONFLICT found: real-auto-save.el (LOCAL 15/05/15 20:26:05 REMOTE 15/05/15 18:36:15 LAST [NO TIME INFO]     )
+## 15/05/18_13:33:48:  rename conflict file: real-auto-save.el -> /d/gnupack_devel-11.00/home/lib/emacs/lisp/real-auto-save.conflict150518_133344.el (dry
+## run)
+## 15/05/18_13:33:48: copy_file (dryrun) LOCAL  <- REMOTE real-auto-save.el
+## 15/05/18_13:33:48:  CONFLICT found: dot_emacs_gnupack.el (LOCAL 15/05/15 20:14:27 REMOTE 15/05/08 11:29:10 LAST [NO TIME INFO]     )
+## 15/05/18_13:33:48:  rename conflict file: dot_emacs_gnupack.el -> /d/gnupack_devel-11.00/home/lib/emacs/lisp/dot_emacs_gnupack.conflict150518_133344.e
+## l (dryrun)
+## 15/05/18_13:33:48: copy_file (dryrun) LOCAL  <- REMOTE dot_emacs_gnupack.el
+## 15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE wikipedia-mode.el
+## 15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE dot_emacs_gnupack_2013-12-25.el
+## 15/05/18_13:33:48: copy_tree   LOCAL  <- REMOTE real-auto-save
+## 15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE real-auto-save-master
+## 15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE ensime
+## 15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE scala-mode2
+## 15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE helm-master
+## 15/05/18_13:45:21: files: --- old; +++ now
+##     {
+## +      "Name" : "lisp",
+## +      "dryrun" : true,
+## +      "except" : "(~$|^#|^~\\$|\\.[lL][nN][kK]$)",
+## +            "local" : "/d/gnupack_devel-11.00/home/lib/emacs/lisp",
+## +            "remote" : "//ueda-pc2.g01.fujitsu.local/home/lib/emacs/lisp",
+## +                  "~time" : "15/05/18 13:34:04"
+## +   },
+## +   {
+##        "Name" : "0-所内",
+## @@ -53,10 +61,2 @@
+##     },
+## -   {
+## -      "Name" : "lisp",
+## -      "dryrun" : true,
+## -      "except" : "(~$|^#|^~\\$|\\.[lL][nN][kK]$)",
+## -            "local" : "/d/gnupack_devel-11.00/home/lib/emacs/lisp",
+## -            "remote" : "//ueda-pc2.g01.fujitsu.local/home/lib/emacs/lisp",
+## -                        "~time" : "15/05/08 11:19:22"
+## -   },
+##     {
+## 
+## 15/05/18_13:45:21: ---
+## 15/05/18_13:45:21: LOCAL:  /d/gnupack_devel-11.00/home/lib/emacs/lisp
+## 15/05/18_13:45:21: toptimestring: 150518_134521_lisp
+## 15/05/18_13:45:23: copy_file (dryrun) LOCAL  -> REMOTE ueda-misc.el
+## 15/05/18_13:45:23: copy_file (dryrun) LOCAL  -> REMOTE real-auto-save.el
+## 15/05/18_13:45:23: copy_file (dryrun) LOCAL  -> REMOTE dot_emacs_gnupack.el
+## 15/05/18_13:45:23: delete_tree  LOCAL
+##                         wikipedia-mode.el
+## 15/05/18_13:45:23: delete_tree  LOCAL
+##                         dot_emacs_gnupack_2013-12-25.el
+## 15/05/18_13:45:30: delete_tree REMOTE
+##                         real-auto-save
+## 15/05/18_13:45:30: delete_tree  LOCAL
+##                         real-auto-save-master
+## 15/05/18_13:45:30: delete_tree  LOCAL
+##                         ensime
+## 15/05/18_13:45:30: delete_tree  LOCAL
+##                         scala-mode2
+## 15/05/18_13:45:30: delete_tree  LOCAL
+##                         helm-master
+## 15/05/18_13:49:34: LOCAL:  /d/09-takeout/03-作業用/ビジョン来年度
 # 拡張
-#	ディレクトリの時刻合わせをする（touchする）コマンド。robocopyでいいかも
+#       本当は、statuslog は引き続きの時は開きなおさないほうが良い。serviceの１サイクルごとに消えてしまうので。
+#       ループの最初のfilesの時刻ソートの際に、remoteが切れていたら、最外周のループに戻る
+#	ディレクトリの時刻合わせをする（touchする）コマンド。robocopyでいいかも。知らない間にリモートのディレクトリの時刻が変わると、そこを触らない限り、ずれたままになる。
 #	backup は連続でしないようにしたい。前のバックアップをlastに記録しておこうか？書き込みに失敗した時に最後のバージョンがあったほうがうれしいか？
 # リファクタリング
 #	day_limitは引数で引き回しているが、 $OPTS{day_limit}でよかった。
 #	robocopy /e /timfix \\remote.server\remote\dir D:\local\dir
 #	system() を使うのはやめよう。mysystem（）を作って、LOGにエラーを書き出す
 #	system() を使うのはやめよう。cygwinに依存したくない。といいつつ、diffとかsedとか気楽に使っている...
+#	Algorihm::Diff を使えばdiffはできそう
+#	.conflictファイルを作る時に diffも取りたい。
+#	verboseが働いていないっぽい
 
 
 # Version 1.0 2015.03.11
 # GitHub ident: $Id$
+
+
+## このファイルは、常時20の最新のバックアップを保存する。RCSとか入っていなくても使えるようにするため。
+## 安定版二つも保存される（kept-old-versions デフォルトと同じ２）ので、割と安定してきたら、それの番号を安定版として登録し、古い安定版を削除する。
+## このファイルを開くたびに更新されるので、安定したら、一度バッファを消して開きなおす。
+## 永久保存版が欲しければ、kept-old-versionsの数を一つ増やす。
+
+## Time-stamp: <2015-09-18 19:42:47 ueda3>
+## Local variables:
+## make-backup-files: t
+## version-control: 1
+## kept-new-versions: 20
+## kept-old-versions: 2
+## trim-versions-without-asking: t
+## end:
