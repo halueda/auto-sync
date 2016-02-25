@@ -1,89 +1,3 @@
-* 確認済み
-** daylimitなしで動くことは確認
-** confのパスに漢字を含んでいても動く
-** //host/dir はコピーできるか
-*** 本当のremoteフォルダで確認
-** rdustbox, ldustbox は file側で(も）設定すべき
-** dryrunも file側で設定したい
-** 漢字コードを指定したい
-** verbose はdirに入った時と出た時にOutLOG
-** .lnkファイルはコピーできるか
-** serviceはループのたびにconfファイルを読み直す
-** reload_confで、同じconfなら出力しない
-** daylimt付だと、remoteだけにあるディレクトリを見つけた瞬間にexception(die->eval)してしまう⇒直った
-** LOGのメッセージを local -> remote/ local <- remote  部分パスとする
-** dustboxにアクセスすると、uninitialized stringのエラーが出る。
-** dustbox はsyncの単位で一つ作って、構造を維持して移動としたい
-** LOGのメッセージに sync時にlocal/remoteを出力するようにする
-** remoteがつながってなければ（fileに見えたら)、パスワードを入れてつなぎなおす⇒ちゃんと動かない
-** server modeで、time leapしたら（たぶんsleepから目覚めたので）少し（30秒くらい）待ってから（ネットワークがつながってから）スタートする。
-** ファイル名に ' が入っていると、cpやmvする時に失敗する。
-** ディレクトリの中を見るときに、まずファイル、次にディレクトリ。更新時刻の新しい順にする。
-** waitやスタートのログは、表示する時に最後のだけが見えるようにする ⇒ スタートのログは1行だけ書いて CR で行頭に戻し、修正があったときだけ2行目以降を表示
-** waitやスタートの入ったログと、エントリ関連のログを分離する。前者は短期間にrotate logして良い
-** sync_mtime のログはその時刻を両方表示する
-** copy_file, copy_treeどteeでログを出力しているところは、 exit status が tee のものになるので、cpに失敗してもdieできない。``で文字列とってLOG出力後にdieかな？
-** remoteが新しくて、その接続が切れると、丸ごと消してしまう！
-** 同じディレクトリのremoteとlocalに両方ファイルを作ると片方だけが残り、もう片方は消えてしまう！ 最終ファイルリストを作ってそれをベースに削除・追加を判断すべき
-** 上書きコピーの時は、sync_dustにバックアップが残らない
-** daylimitあり ⇒ なんとなく怪しい。間違えてremoteを消してしまうことがあった。
-***       もはや使っていないコードは消す。
-***       sync_dir2が大きすぎる。分割できないか。
-** 最終更新日（syncに成功した日時？）を記録しておいて、それより新しいかどうかでファイルの削除などを確認したい。片方にしかなくても、最終更新日より後に作成されたものならそれは親の新旧に関わらずコピーしたい
-** 空っぽのディレクトリをクリアする機能を付けて、dustboxの下とdaylimit付きのlocalの下をクリアする
-** day_limitありで、有効期限内のファイルをローカルで消しても、リモートが消されずに、リモートから復元してしまう: 前からあったバグだった。
-** 更新時にファイルバックアップの mv ...のメッセージをもっと軽くしたい
-** day_limit に shallowオプション欲しい。ディレクトリの日付が新しいのだけスキャンでよい。そうしたら、archiveとかはスキャンに行かない
-** day_limitは、ファイル単位ではなく、ディレクトリ単位で効くようにして、最近のディレクトリが見つかった時だけ、その下をsyncする。古いディレクトリは、その下のディレクトリだけ再帰しに行って、直下のファイルは無視する
-** day_limitつきでローカルで名前を変えると、REMOTEとLOCALの両方に名前を変える前と変えた後の両方ができてしまう。
-** kill -HUPしたら、即座にsleepから目覚めるとか
-** configにフォルダ名だけ書いてあると、そこの _sync_conf.txt を configとして読む設定が欲しい。 _originalとか無理言わないから。それだけならすぐできるはず。
-** configにフォルダ名というのが、フォルダからサブフォルダに行く時もできて欲しい。最初から全て読まなくても良い。そのサブフォルダのconfigを読んでtopと同じ動作をする、として欲しい。これはちょっと難易度が高い。トップレベルがサブフォルダ関係になっている。⇒ conf_in_conf とか {.CONF} がほぼ同じ動作をしている。.CONFはconfigの継承をする。filesのpushもしている。confのチェーンが一本鎖なのを、逆向きの木にすればよいだけ。optsの書き換えの方向は.CONFとは逆なのに注意。
-*** 	相対configでディレクトリ名に  "*" と書いたら、 $base/* それぞれで実行する
-** sync_dirのstatの最中にコネクションが切れると、sync_file で remote is updated with old fileに入って、ファイルをバックアップでdustに入れてしまうが、remoteからはコピーできないので、一見なくなってしまう。
-** @filesのソートで、NO TIMEINFOは最後に寄せたほうがよい。
-** @filesのソートで、NO TIMEINFOだったら使わないようにすべき
-** @filesのソートで、NO TIMEINFOだったら使わないようにすべき
-** @filesのソートで、localにも NO TIMEINFOが出るのはなぜ？たぶん漢字コードのため
-** rpass はログに表示しない
-** SIGHUPだとスキャン中でもブレークする
-** SIGHUPで起きると、confのリロードをしないかも...
-** REMOTE: のメッセージはいらないかも
-** day_limitの判断は、切り捨てて、1日1回だけ消去などが行われるようにしたい
-** _last.json ファイルを作ると、day_limit付きで時間切れしても消しに行かない。
-** _last.jsonとか _sync_conf.txtとかハードコーディングはやめよう。_originalも増えるし。
-** files の _sync_conf.txtの読み込みに失敗したら、全体の失敗ではなく、警告だけ出してスキップして欲しい
-** day_limitで消す時にはそういうメッセージにする
-** day_limitで消す時に下記のメッセージが出た。(to dustbox)は何度も出ているが上書きされて残らない様子
-    (to dustbox)/bin/mv: cannot move `...' to `...': Directory not empty
-** ローカルで新規のファイルを作ると、リモートのパーミッションが変で読めない
-** remoteからのコピーに伴うバックアップ前にオリジナルをstatして失敗したら、die ⇒ cpに失敗したら終わるようになったので入れなくていいや
-** remove_treeという関数はなくて、delete_treeなのに、ログにはremove_treeと出力している
-** reload_conf関数の引数 $filesは必須とし、そこを副作用で書き換える。⇒ 変える必要ない
-** パスワード変更を一箇所でできるようにする。個別に書かずに、pass用のタグ(prefixでいいや)と、本当のパスワードを分離する
-** rdustbox, ruser, rpass を一括で取り出せるようにしよう。localもldustboxを設定したいし。一つ上とあわせpatternを作った。
-** アクセスを一次停止するオプション（SIGQUITシグナル）
-** conflictファイルはremoteにアップロードしないようにする
-** _sync_conf.txtを読む時に、_originalも作ってあげる。symlinkではだめでWin32APIを使わないとだめ？ mklink /d _original $dest　でいけるかも。⇒結局 Shorcut.CMDを使うことにした。同梱する。
-** やらない：conf/filesに構造でなくディレクトリ名が書いてあったら、その下の _original と _sync_conf.txtを見て動作する ldustbox は ../..などと書ける[exiftoolでは、ネットワークフォルダ/sharepointへのLnkが読めない。OLEベースはコンパイルがうまくいかない...」
-** 元のディレクトリ構造の_originalだけ集めたらホームの方も使いやすくなりそう。できれば Explorerのショートカット (.LNKファイル）を作って、それをコピーするのが良い。これは、sync.plの外かも ⇒ working/takeoutlog.shを作った
-** 元のディレクトリ一覧 (ls -lra) をどこかに定期的に保存したい。これはsync.plの外かも。Windowsのタスクからcygwin-shを呼び出してリダイレクト。⇒ working/takeoutlog.shを作った
-** 起動時にログをローテートする
-** 起動時にsync.logをばらす機能。100,000行ごとにsplitして、拡張部分は、00で、今あるのの次からという
-** ログを別フォルダにする。消せるように、コピーできるように。
-** statuslogはappendでなく最初からでよい。
-** プログラムのリランをするオプション（SIGUSR1シグナル）
-** filesのログは、全データでなく、diff -u 前後は1行が良い。
-** verboseとか rdustbox, ldustbox, rpassでdiffが混乱してしまう。もう少し長めにdiffチェックして欲しい --horizon-lines=7してみた --minimalはまだ
-* 未テスト
-** もしも、ディレクトリの時刻がずれてたらこっそり直したほうが良い。
-** 'diffrelax=i',	* sec
-** 以下の行は status.log に出す。
-    ====================
-    15/03/07_22:30:00: different type: ... (file) ...(dir)
-    15/03/07_22:30:00: try reconnect: ...
-    15/03/07_22:30:00: Connection may broken! at sync.pl line 1539.
-    ====================
 * バグ
 ** rpassがないのに再接続をしようとして、何度も失敗する⇒ロックアウトする？
 ** 問題。sharepoint WebDAV はファイルを更新しても時刻が見えない。ここは、対象外にするか、readonlyにした方がよい。あるいは、更新はlocalだけにする。remoteでは消して作る。
@@ -173,6 +87,15 @@
 ** ループの最初のfilesの時刻ソートの際に、remoteが切れていたら、最外周のループに戻る
 *** ディレクトリの時刻合わせをする（touchする）コマンド。robocopyでいいかも。知らない間にリモートのディレクトリの時刻が変わると、そこを触らない限り、ずれたままになる。
 *** backup は連続でしないようにしたい。前のバックアップをlastに記録しておこうか？書き込みに失敗した時に最後のバージョンがあったほうがうれしいか？
+* 未テスト
+** もしも、ディレクトリの時刻がずれてたらこっそり直したほうが良い。
+** 'diffrelax=i',	* sec
+** 以下の行は status.log に出す。
+    ====================
+    15/03/07_22:30:00: different type: ... (file) ...(dir)
+    15/03/07_22:30:00: try reconnect: ...
+    15/03/07_22:30:00: Connection may broken! at sync.pl line 1539.
+    ====================
 * リファクタリング
 ** day_limitは引数で引き回しているが、 $OPTS{day_limit}でよかった。
 ** robocopy /e /timfix \\remote.server\remote\dir D:\local\dir
@@ -180,4 +103,81 @@
 ** system() を使うのはやめよう。cygwinに依存したくない。といいつつ、diffとかsedとか気楽に使っている...
 ** Algorihm::Diff を使えばdiffはできそう
 ** .conflictファイルを作る時に diffも取りたい。
+* 確認済み
+** daylimitなしで動くことは確認
+** confのパスに漢字を含んでいても動く
+** //host/dir はコピーできるか
+*** 本当のremoteフォルダで確認
+** rdustbox, ldustbox は file側で(も）設定すべき
+** dryrunも file側で設定したい
+** 漢字コードを指定したい
+** verbose はdirに入った時と出た時にOutLOG
+** .lnkファイルはコピーできるか
+** serviceはループのたびにconfファイルを読み直す
+** reload_confで、同じconfなら出力しない
+** daylimt付だと、remoteだけにあるディレクトリを見つけた瞬間にexception(die->eval)してしまう⇒直った
+** LOGのメッセージを local -> remote/ local <- remote  部分パスとする
+** dustboxにアクセスすると、uninitialized stringのエラーが出る。
+** dustbox はsyncの単位で一つ作って、構造を維持して移動としたい
+** LOGのメッセージに sync時にlocal/remoteを出力するようにする
+** remoteがつながってなければ（fileに見えたら)、パスワードを入れてつなぎなおす⇒ちゃんと動かない
+** server modeで、time leapしたら（たぶんsleepから目覚めたので）少し（30秒くらい）待ってから（ネットワークがつながってから）スタートする。
+** ファイル名に ' が入っていると、cpやmvする時に失敗する。
+** ディレクトリの中を見るときに、まずファイル、次にディレクトリ。更新時刻の新しい順にする。
+** waitやスタートのログは、表示する時に最後のだけが見えるようにする ⇒ スタートのログは1行だけ書いて CR で行頭に戻し、修正があったときだけ2行目以降を表示
+** waitやスタートの入ったログと、エントリ関連のログを分離する。前者は短期間にrotate logして良い
+** sync_mtime のログはその時刻を両方表示する
+** copy_file, copy_treeどteeでログを出力しているところは、 exit status が tee のものになるので、cpに失敗してもdieできない。``で文字列とってLOG出力後にdieかな？
+** remoteが新しくて、その接続が切れると、丸ごと消してしまう！
+** 同じディレクトリのremoteとlocalに両方ファイルを作ると片方だけが残り、もう片方は消えてしまう！ 最終ファイルリストを作ってそれをベースに削除・追加を判断すべき
+** 上書きコピーの時は、sync_dustにバックアップが残らない
+** daylimitあり ⇒ なんとなく怪しい。間違えてremoteを消してしまうことがあった。
+***       もはや使っていないコードは消す。
+***       sync_dir2が大きすぎる。分割できないか。
+** 最終更新日（syncに成功した日時？）を記録しておいて、それより新しいかどうかでファイルの削除などを確認したい。片方にしかなくても、最終更新日より後に作成されたものならそれは親の新旧に関わらずコピーしたい
+** 空っぽのディレクトリをクリアする機能を付けて、dustboxの下とdaylimit付きのlocalの下をクリアする
+** day_limitありで、有効期限内のファイルをローカルで消しても、リモートが消されずに、リモートから復元してしまう: 前からあったバグだった。
+** 更新時にファイルバックアップの mv ...のメッセージをもっと軽くしたい
+** day_limit に shallowオプション欲しい。ディレクトリの日付が新しいのだけスキャンでよい。そうしたら、archiveとかはスキャンに行かない
+** day_limitは、ファイル単位ではなく、ディレクトリ単位で効くようにして、最近のディレクトリが見つかった時だけ、その下をsyncする。古いディレクトリは、その下のディレクトリだけ再帰しに行って、直下のファイルは無視する
+** day_limitつきでローカルで名前を変えると、REMOTEとLOCALの両方に名前を変える前と変えた後の両方ができてしまう。
+** kill -HUPしたら、即座にsleepから目覚めるとか
+** configにフォルダ名だけ書いてあると、そこの _sync_conf.txt を configとして読む設定が欲しい。 _originalとか無理言わないから。それだけならすぐできるはず。
+** configにフォルダ名というのが、フォルダからサブフォルダに行く時もできて欲しい。最初から全て読まなくても良い。そのサブフォルダのconfigを読んでtopと同じ動作をする、として欲しい。これはちょっと難易度が高い。トップレベルがサブフォルダ関係になっている。⇒ conf_in_conf とか {.CONF} がほぼ同じ動作をしている。.CONFはconfigの継承をする。filesのpushもしている。confのチェーンが一本鎖なのを、逆向きの木にすればよいだけ。optsの書き換えの方向は.CONFとは逆なのに注意。
+*** 	相対configでディレクトリ名に  "*" と書いたら、 $base/* それぞれで実行する
+** sync_dirのstatの最中にコネクションが切れると、sync_file で remote is updated with old fileに入って、ファイルをバックアップでdustに入れてしまうが、remoteからはコピーできないので、一見なくなってしまう。
+** @filesのソートで、NO TIMEINFOは最後に寄せたほうがよい。
+** @filesのソートで、NO TIMEINFOだったら使わないようにすべき
+** @filesのソートで、NO TIMEINFOだったら使わないようにすべき
+** @filesのソートで、localにも NO TIMEINFOが出るのはなぜ？たぶん漢字コードのため
+** rpass はログに表示しない
+** SIGHUPだとスキャン中でもブレークする
+** SIGHUPで起きると、confのリロードをしないかも...
+** REMOTE: のメッセージはいらないかも
+** day_limitの判断は、切り捨てて、1日1回だけ消去などが行われるようにしたい
+** _last.json ファイルを作ると、day_limit付きで時間切れしても消しに行かない。
+** _last.jsonとか _sync_conf.txtとかハードコーディングはやめよう。_originalも増えるし。
+** files の _sync_conf.txtの読み込みに失敗したら、全体の失敗ではなく、警告だけ出してスキップして欲しい
+** day_limitで消す時にはそういうメッセージにする
+** day_limitで消す時に下記のメッセージが出た。(to dustbox)は何度も出ているが上書きされて残らない様子
+    (to dustbox)/bin/mv: cannot move `...' to `...': Directory not empty
+** ローカルで新規のファイルを作ると、リモートのパーミッションが変で読めない
+** remoteからのコピーに伴うバックアップ前にオリジナルをstatして失敗したら、die ⇒ cpに失敗したら終わるようになったので入れなくていいや
+** remove_treeという関数はなくて、delete_treeなのに、ログにはremove_treeと出力している
+** reload_conf関数の引数 $filesは必須とし、そこを副作用で書き換える。⇒ 変える必要ない
+** パスワード変更を一箇所でできるようにする。個別に書かずに、pass用のタグ(prefixでいいや)と、本当のパスワードを分離する
+** rdustbox, ruser, rpass を一括で取り出せるようにしよう。localもldustboxを設定したいし。一つ上とあわせpatternを作った。
+** アクセスを一次停止するオプション（SIGQUITシグナル）
+** conflictファイルはremoteにアップロードしないようにする
+** _sync_conf.txtを読む時に、_originalも作ってあげる。symlinkではだめでWin32APIを使わないとだめ？ mklink /d _original $dest　でいけるかも。⇒結局 Shorcut.CMDを使うことにした。同梱する。
+** やらない：conf/filesに構造でなくディレクトリ名が書いてあったら、その下の _original と _sync_conf.txtを見て動作する ldustbox は ../..などと書ける[exiftoolでは、ネットワークフォルダ/sharepointへのLnkが読めない。OLEベースはコンパイルがうまくいかない...」
+** 元のディレクトリ構造の_originalだけ集めたらホームの方も使いやすくなりそう。できれば Explorerのショートカット (.LNKファイル）を作って、それをコピーするのが良い。これは、sync.plの外かも ⇒ working/takeoutlog.shを作った
+** 元のディレクトリ一覧 (ls -lra) をどこかに定期的に保存したい。これはsync.plの外かも。Windowsのタスクからcygwin-shを呼び出してリダイレクト。⇒ working/takeoutlog.shを作った
+** 起動時にログをローテートする
+** 起動時にsync.logをばらす機能。100,000行ごとにsplitして、拡張部分は、00で、今あるのの次からという
+** ログを別フォルダにする。消せるように、コピーできるように。
+** statuslogはappendでなく最初からでよい。
+** プログラムのリランをするオプション（SIGUSR1シグナル）
+** filesのログは、全データでなく、diff -u 前後は1行が良い。
+** verboseとか rdustbox, ldustbox, rpassでdiffが混乱してしまう。もう少し長めにdiffチェックして欲しい --horizon-lines=7してみた --minimalはまだ
 * 
