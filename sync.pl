@@ -2129,18 +2129,3 @@ __END__
 
 # Version 1.0 2015.03.11
 # GitHub ident: $Id$
-
-
-## このファイルは、常時20の最新のバックアップを保存する。RCSとか入っていなくても使えるようにするため。
-## 安定版二つも保存される（kept-old-versions デフォルトと同じ２）ので、割と安定してきたら、それの番号を安定版として登録し、古い安定版を削除する。
-## このファイルを開くたびに更新されるので、安定したら、一度バッファを消して開きなおす。
-## 永久保存版が欲しければ、kept-old-versionsの数を一つ増やす。
-
-## Time-stamp: <2015-09-18 19:42:47 ueda3>
-## Local variables:
-## make-backup-files: t
-## version-control: 1
-## kept-new-versions: 20
-## kept-old-versions: 2
-## trim-versions-without-asking: t
-## end:
