@@ -600,10 +600,10 @@ sub from_to_string ( $$ ) {
     }
 }
 
-sub dir_string ( $ ) {
-    my ($from) = @_;
+sub dir_string ( $$ ) {
+    my ($from,$mes) = @_;
     my ($from_top, $from_sub) = dir_part( $from );
-    return sprintf("%6s \n\t\t\t%s\n", $from_top, $from_sub);
+    return sprintf("%-6s %-9s %s\n", $from_top, $mes, $from_sub);
 }
 
 ###
@@ -986,7 +986,8 @@ sub copy_tree ( $$$$ ) { #$!$!$! $local_filesを引数に取るべき
 
 	my $dest = prepare_dustbox_dir($part, $dustbox);
 
-	out_LOG $INFO, "backup(cp)  %-6s %s\n", $top, $part;
+	out_LOG $INFO, "backup(cp)  %-6s [dustbox] %s\n", $top, $part;
+#	out_LOG $INFO, "backup(cp)  %-6s           %s\n", $top, $part;
 	# 動いたら動かす。からでなければ無視
 	system("/bin/cp",  "--preserve=timestamps,links", $dir, $dest) ==0
 	    or out_LOG $LOG, "cpto_dustbox failed: %s %s: %s", $dir, $dest, $!;
@@ -1004,22 +1005,23 @@ sub copy_tree ( $$$$ ) { #$!$!$! $local_filesを引数に取るべき
 
 }
 
-sub delete_tree ( $$$ ) {
+sub delete_tree ( $$$;$ ) {
     use File::Path;
 
-    my ( $file, $dir, $dustbox ) = @_;
+    my ( $file, $dir, $dustbox, $mes ) = @_;
     if ( match_2( $file, $OPTS{except} ) ) {
 	return ;
     }
+    $mes = "" if (not defined($mes));
 
     # rm -rf; or mv $dir $DUSTBOX; or out_LOG if dryrun
     if ( $OPTS{dryrun} ) {
-	out_LOG $INFO, "delete_tree %-6s (dryrun)", dir_string($dir);
+	out_LOG $INFO, "delete      %s", dir_string($dir, $mes."(dryrun)" );
     } elsif ( $dustbox ) {
-	out_LOG $INFO, "delete_tree %-6s (to dustbox)", dir_string($dir);
+	out_LOG $INFO, "delete      %s", dir_string($dir, $mes."[dustbox]" );
 	mvto_dustbox( $dir, $dustbox);
     } else {
-	out_LOG $INFO, "delete_tree %s", dir_string($dir);
+	out_LOG $INFO, "delete      %s", dir_string($dir, $mes);
 	File::Path::remove_tree( $dir );
     }
 }
@@ -1188,8 +1190,8 @@ sub sync_file ( $$$$$$$$ ) {
     }
 # 1    1    1	同じファイル。何もしない
     if (! newer_date( $local_attr, $day_limit ) ) {
-      out_LOG $INFO, "Older than day_limit: %s %s\n", $day_limit, attr_mtime_str($local_attr);
-      delete_tree( $file, $local_file, undef ); # day_limit超えたら、バックアップはしないで消してよい. dustbox($OPTS{ldustbox})
+#      out_LOG $INFO, "Older than day_limit: %s %s\n", $day_limit, attr_mtime_str($local_attr);
+      delete_tree( $file, $local_file, undef, sprintf("[>%dD]",$day_limit) ); # day_limit超えたら、バックアップはしないで消してよい. dustbox($OPTS{ldustbox})
       undef $last_files->{$file};
       $last_files->{"/UPDATE_LOCAL"} = 1;
       $last_files->{"/last_update"} = 1;
