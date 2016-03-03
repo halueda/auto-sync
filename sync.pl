@@ -168,6 +168,7 @@ sub out_LOG ( $$@ ) {
 	print STDERR ' ' x $last_size . "\r";
 	print STDERR $before_log;
 	print STDERR $mes;
+	print STATUSLOG $mes, "\n";
 	$before_log = "";
 	$last_size = 0;
       }
@@ -1235,7 +1236,12 @@ sub sync_file ( $$$$$$$$ ) {
 # 3    2    1	localもremoteも古い版だが、バージョンが違う。エラーでコンフリクト。
 # 1    2    3	localとremoteで更新。コンフリクト！remoteが新しい。
 # 1    3    2	localとremoteで更新。コンフリクト！localが新しい。
-      out_LOG $INFO, " CONFLICT found: %s (LOCAL %s REMOTE %s LAST %s)\n", $file, attr_mtime_str($local_attr),  attr_mtime_str($remote_attr), attr_mtime_str($last_attr);
+
+    out_LOG $INFO, ("CONFLICT found:              %s\n".
+		    "                     LOCAL %s\n".
+		    "                     REMOTE %s\n".
+		    "                     LAST %s\n\n" ) ,
+		      $file, attr_mtime_str($local_attr),  attr_mtime_str($remote_attr), attr_mtime_str($last_attr);
 
     # コンフリクトの処理:
     #  localをコンフリクトファイルにして
@@ -1715,6 +1721,7 @@ sub diff_log ( $$$ ) {
   system("/bin/rm $oldfile $nowfile");
   return "--- old; +++ now\n" . $diff;
 }
+my $lastStatuslogFile;
 
 sub reload_conf ( ;$$ ) {
     my ($mes, $old_files) = @_;
@@ -1781,13 +1788,23 @@ sub reload_conf ( ;$$ ) {
 #	open LOG, ">", "/dev/null";
 #    }
 
-    # $!$!$! 本当は、statuslog は引き続きの時は開きなおさないほうが良い。serviceの１サイクルごとに消えてしまうので。
+    # statuslog は引き続きの時は開きなおさない。serviceの１サイクルごとに消えてしまうので。
+#    printf "statuslog: '%s' lastStatuslogFile: '%s' -> ", $OPTS{statuslog}, $lastStatuslogFile;
     if ( $OPTS{statuslog} ) {
+      if ( (not defined($lastStatuslogFile) or $OPTS{statuslog} ne $lastStatuslogFile) ) {
 	open STATUSLOG, ">", $OPTS{statuslog};
-	STATUSLOG->autoflush(1);
+#	printf "re-open";
+      } else {
+#	printf "do nothing";
+      }
+      $lastStatuslogFile = $OPTS{statuslog};
+      STATUSLOG->autoflush(1);
     } else {
       open STATUSLOG, ">", "/dev/null";
+      $lastStatuslogFile = undef;
+#      printf "/dev/null";
     }
+#    printf " lastStatuslogFile: '%s'\n", $lastStatuslogFile;
 
     STDERR->autoflush(1);
 
