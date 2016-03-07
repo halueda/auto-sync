@@ -1238,9 +1238,9 @@ sub sync_file ( $$$$$$$$ ) {
 # 1    3    2	localとremoteで更新。コンフリクト！localが新しい。
 
     out_LOG $INFO, ("CONFLICT found:              %s\n".
-		    "                     LOCAL %s\n".
+		    "                     LOCAL  %s\n".
 		    "                     REMOTE %s\n".
-		    "                     LAST %s\n\n" ) ,
+		    "                     LAST   %s\n\n" ) ,
 		      $file, attr_mtime_str($local_attr),  attr_mtime_str($remote_attr), attr_mtime_str($last_attr);
 
     # コンフリクトの処理:
@@ -1249,13 +1249,16 @@ sub sync_file ( $$$$$$$$ ) {
     my ($basename, $dirname, $extname) = fileparse($local_file, qr/\.[^.]*/);
     my $conflict_file = $basename . ".conflict" . get_toptimestring1() . $extname;
     my $conflict_path = $dirname . $conflict_file;
+    my ($confl_top, $confl_sub) = dir_part( $conflict_path );
     # dryrunの時はrenameしない
+
     if ( $OPTS{dryrun} ) {
-      out_LOG $INFO, " rename conflict file: %s -> %s (dryrun)\n", $file, $conflict_path;
+      out_LOG $INFO, "rename(dry) LOCAL [conflict] %s\n", $confl_sub;
     } else {
-      out_LOG $INFO, " rename conflict file: %s -> %s\n", $file, $conflict_path;
+      out_LOG $INFO, "rename      LOCAL [conflict] %s\n", $confl_sub;
       rename( $local_file, $conflict_path);
     }
+
     #  remoteを転送。バックアップはしない
     #  lastはremoteを使う
     copy_file( $file, $remote_attr, $local_file, $local, $day_limit, undef, $last_files );
