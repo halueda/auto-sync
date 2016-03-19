@@ -25,6 +25,7 @@ GetOptions(\%OPTS_RAW,
 	   'config=s',  # conf_file
 	   'statuslog=s',	# log_file
 	   'log=s',	# log_file
+	   'mapping=s', # mapping_file
 	   'diffrelax=i',	# sec
 	   'verbose=i',	# 0: no message, 1: minimal, 2: verbose
 	   'encode=s',
@@ -1871,6 +1872,14 @@ sub reload_conf ( ;$$ ) {
 
     # pattern compile
     #$OPTS{except} = qr/$OPTS{except}/;
+
+    if ( $OPTS{mapping} ) {
+      my %mapping;
+      foreach my $f ( @files ) {
+	$mapping{ $f->{local} } =  $f->{remote};
+      }
+      write_jsonfile($OPTS{mapping}, \%mapping);
+    }
 
     return @files;
 }
