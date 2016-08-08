@@ -624,6 +624,7 @@ sub files ( $ ) {
 
     stat( "$dir/." )
 	or die "Failed to re-stat dir $dir: $!";
+    out_LOG $DEBUG, "%10s stat(%s)\n", "files re-stat", "$dir/." ;
 
     my @return;
     foreach my $f ( @filenames ) {
@@ -659,14 +660,30 @@ sub attr ( $ ) {
 
     my $attr = stat( $file )
 	or return;
+    out_LOG $DEBUG, "%10s stat(%s)\n", "attr", $file ;
 
     attr_file($attr, $file);
 
-    if ( -d _ ) {
-	attr_type($attr, "dir");
-    } elsif ( -f _ ) {
+    if ( -d $attr ) {
+      attr_type($attr, "dir");
+      opendir( my $tmp, $file )
+	or  die "stat success but opendir fail: $file $!";
+      if ( $tmp ) {
+	closedir $tmp;
+      } else {
+	or  die "stat success but opendir sets null handler: $file";
+      }
+    } elsif ( -f $attr ) {
 	attr_type($attr, "file");
-    } elsif ( -l _ ) {
+
+	open( my $tmp, "<", $file )
+	  or die "stat success but open fail: $file $!";
+      if ( $tmp ) {
+	close $tmp;
+      } else {
+	die "stat success but open sets null handler: $file";
+      }
+    } elsif ( -l $attr ) {
 	attr_type($attr, "link");
     } else {
 	attr_type($attr, "other");
@@ -694,7 +711,7 @@ sub attr_file ( $;$ ) {
 }
 
 sub attr_mtime ( $ ) {
-    return attr_index( $_[0], undef, 9) or 0;
+    return( attr_index( $_[0], undef, 9) or 0 );
 #    return $_[0]->mtime;
 
 #    my ($attr) = @_;
@@ -1034,6 +1051,8 @@ sub sync_mtime2 ( $$ ) {
       my ($dir_part, $subdir) = dir_part($dest);
       my $stat_dest = stat($dest)
 	or die "failed to stat $dest";
+      out_LOG $DEBUG, "%10s stat(%s)\n", "sync_mtime2", $dest ;
+
 	if ( $OPTS{dryrun} ) {
 	    out_LOG $LOG, "sync_mtime2 %-6s (%s -> %s) %s (dryrun)\n", $dir_part, attr_mtime_str($stat_dest), attr_mtime_str($attr), $subdir;
 	} else {
