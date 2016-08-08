@@ -312,7 +312,7 @@ sub write_jsonfile ( $$;$ ) {
   my ($file, $content, $last_json_text) = @_;
   use JSON::PP ();
   my $new_json_text = JSON::PP->new->allow_blessed->as_nonblessed->canonical->pretty->encode( $content );
-  out_LOG $DEBUG, "%s\n%s\n%s\n", $file, $last_json_text, $new_json_text;
+  out_LOG $DEBUG, "%s\n%s\n%s\n", $file, ($last_json_text || ""), $new_json_text;
 
   if (not $last_json_text or $last_json_text ne $new_json_text) {
     if (open( my $json_file, ">", $file ) ) {
