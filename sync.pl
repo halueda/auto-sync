@@ -308,14 +308,25 @@ sub read_jsonfile ( $ ) {
   return $conf
 }
 
-sub write_jsonfile ( $$ ) {
-  my ($file, $content) = @_;
+sub write_jsonfile ( $$;$ ) {
+  my ($file, $content, $last_json_text) = @_;
   use JSON::PP ();
-  if (open( my $last_json, ">", $file ) ) {
-    print $last_json JSON::PP->new->allow_blessed->as_nonblessed->pretty->encode( $content );
-    close( $last_json );
-  }
+  my $new_json_text = JSON::PP->new->allow_blessed->as_nonblessed->canonical->pretty->encode( $content );
+  out_LOG $DEBUG, "%s\n%s\n%s\n", $file, $last_json_text, $new_json_text;
 
+  if (not $last_json_text or $last_json_text ne $new_json_text) {
+    if (open( my $json_file, ">", $file ) ) {
+      print $json_file $new_json_text;
+      close( $json_file );
+      out_LOG $DEBUG, "Wrote\n";
+      return $new_json_text;
+    }
+    out_LOG $DEBUG, "Failed to write\n";
+    return ""; # failed to write!
+  } else {
+    out_LOG $DEBUG, "No need to write\n";
+    return $new_json_text; # no need to write but ok.
+  }
 }
 
 sub read_conf ( $;$ );
@@ -671,7 +682,7 @@ sub attr ( $ ) {
       if ( $tmp ) {
 	closedir $tmp;
       } else {
-	or  die "stat success but opendir sets null handler: $file";
+	die "stat success but opendir sets null handler: $file";
       }
     } elsif ( -f $attr ) {
 	attr_type($attr, "file");
@@ -1744,7 +1755,9 @@ sub diff_log ( $$$ ) {
   system("/bin/rm $oldfile $nowfile");
   return "--- old; +++ now\n" . $diff;
 }
+
 my $lastStatuslogFile;
+my $last_mapping_text = "";
 
 sub reload_conf ( ;$$ ) {
     my ($mes, $old_files) = @_;
@@ -1897,7 +1910,7 @@ sub reload_conf ( ;$$ ) {
       foreach my $f ( @files ) {
 	$mapping{ $f->{local} } =  $f->{remote};
       }
-      write_jsonfile($OPTS{mapping}, \%mapping);
+      $last_mapping_text = write_jsonfile($OPTS{mapping}, \%mapping, $last_mapping_text);
     }
 
     return @files;
