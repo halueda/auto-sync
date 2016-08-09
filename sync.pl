@@ -1704,7 +1704,7 @@ sub sync ( $$$ ) {
 				  attr => $attr };
 	    sync_dir_2( $remote, $local, $this_dir_attr, $day_limit);
 
-	    if ( not -e "$local/_original.lnk" ) {
+	    if ( not -e "$local/_original.lnk" ) { # or -e ./_sync_conf.txt and "$local/_original.lnk" is older than ./_sync_conf.txt
 	      out_LOG $INFO, "making $local/_original.lnk\n";
 #	      symlink $remote, "$local/_original";	# windowsからアクセスできない。そもそも .lnk がついてないといけない
 	      my $originalpath = `/bin/cygpath -w '$local/_original.lnk'`;   # まずパス変換
@@ -1857,8 +1857,8 @@ sub reload_conf ( ;$$ ) {
 
     # @files を remoteまたはlocalの新しい方が先に来るようにソートしてから
     @files = map {
-      my $remote_attr = attr($_->{remote});
-      my $local_attr  = attr($_->{local});
+      my $remote_attr = eval { attr($_->{remote}) };
+      my $local_attr  = eval { attr($_->{local}) };
 #     remoteが切れていたら、最外周のループに戻る
       $_ -> {attr} = choose_newer( $remote_attr, $local_attr );
 #      my ($top,$part) = dir_part( $_->{local} );
@@ -1910,7 +1910,13 @@ sub reload_conf ( ;$$ ) {
       foreach my $f ( @files ) {
 	$mapping{ $f->{local} } =  $f->{remote};
       }
-      $last_mapping_text = write_jsonfile($OPTS{mapping}, \%mapping, $last_mapping_text);
+      my $next_mapping_text = write_jsonfile($OPTS{mapping}, \%mapping, $last_mapping_text);
+      if ( $next_mapping_text ne $last_mapping_text ) {
+	if ( $OPTS{mappinghook} ) {
+	  eval { system( $OPTS{mappinghook} ) } ;
+	}
+	$last_mapping_text = $next_mapping_text;
+      }
     }
 
     return @files;
