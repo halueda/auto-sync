@@ -1912,7 +1912,9 @@ sub reload_conf ( ;$$ ) {
       }
       my $next_mapping_text = write_jsonfile($OPTS{mapping}, \%mapping, $last_mapping_text);
       if ( $next_mapping_text ne $last_mapping_text ) {
+	out_LOG $INFO, "wrote mapping file: %s\n", $OPTS{mapping};
 	if ( $OPTS{mappinghook} ) {
+	  out_LOG $INFO, "excute mappinghook: %s\n", $OPTS{mappinghook};
 	  eval { system( $OPTS{mappinghook} ) } ;
 	}
 	$last_mapping_text = $next_mapping_text;
