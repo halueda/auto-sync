@@ -1706,6 +1706,9 @@ sub sync ( $$$ ) {
 
 	    if ( not -e "$local/_original.lnk" ) { # or -e ./_sync_conf.txt and "$local/_original.lnk" is older than ./_sync_conf.txt
 	      out_LOG $INFO, "making $local/_original.lnk\n";
+	      # ここは外部コマンドをハードコーディングするのではなくて、linkcommand オプションで指定したものを実行する
+	      # そうすることでリンクを作るだけでなく、originalsに即座に追加出来るようになる
+	      # linkcommand remotepath originalpath と呼び出す。どちらもcygwinパスを引数にするので、Windowsパスコマンドにするのは、linkcommandの責任
 #	      symlink $remote, "$local/_original";	# windowsからアクセスできない。そもそも .lnk がついてないといけない
 	      my $originalpath = `/bin/cygpath -w '$local/_original.lnk'`;   # まずパス変換
 	      chomp $originalpath;
