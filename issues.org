@@ -1,78 +1,80 @@
 * バグ
 ** ローカルで新規に作ったファイルをリモートにcp中に回線が切れると、コピーしそびれたファイルがなくなる
-** dryrunしたあと、本番をすると、間違った_lastファイルの影響で、ローカルが全て正しいことになってしまう。(conflictも作らないし、余分のフォルダはリモートもローカルも消してしまう！）。以下ログ
-    
-    15/05/18_13:32:53: files: --- old; +++ now
-           "except" : "(~$|^#|^~\\$|\\.[lL][nN][kK]$)",
-    -      "local" : " /d/gnupack_devel-11.00/home/lib/emacs/lisp",
-    +            "local" : "/d/gnupack_devel-11.00/home/lib/emacs/lisp",
-                 "remote" : "//ueda-pc2.g01.fujitsu.local/home/lib/emacs/lisp",
-    
-    15/05/18_13:33:44: ---
-    15/05/18_13:33:44: LOCAL:  /d/gnupack_devel-11.00/home/lib/emacs/lisp
-    15/05/18_13:33:44: toptimestring: 150518_133344_lisp
-    15/05/18_13:33:48:  CONFLICT found: ueda-misc.el (LOCAL 15/05/15 20:28:27 REMOTE 14/10/03 15:56:59 LAST [NO TIME INFO]     )
-    15/05/18_13:33:48:  rename conflict file: ueda-misc.el -> /d/gnupack_devel-11.00/home/lib/emacs/lisp/ueda-misc.conflict150518_133344.el (dryrun)
-    15/05/18_13:33:48: copy_file (dryrun) LOCAL  <- REMOTE ueda-misc.el
-    15/05/18_13:33:48:  CONFLICT found: real-auto-save.el (LOCAL 15/05/15 20:26:05 REMOTE 15/05/15 18:36:15 LAST [NO TIME INFO]     )
-    15/05/18_13:33:48:  rename conflict file: real-auto-save.el -> /d/gnupack_devel-11.00/home/lib/emacs/lisp/real-auto-save.conflict150518_133344.el (dry
-    run)
-    15/05/18_13:33:48: copy_file (dryrun) LOCAL  <- REMOTE real-auto-save.el
-    15/05/18_13:33:48:  CONFLICT found: dot_emacs_gnupack.el (LOCAL 15/05/15 20:14:27 REMOTE 15/05/08 11:29:10 LAST [NO TIME INFO]     )
-    15/05/18_13:33:48:  rename conflict file: dot_emacs_gnupack.el -> /d/gnupack_devel-11.00/home/lib/emacs/lisp/dot_emacs_gnupack.conflict150518_133344.e
-    l (dryrun)
-    15/05/18_13:33:48: copy_file (dryrun) LOCAL  <- REMOTE dot_emacs_gnupack.el
-    15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE wikipedia-mode.el
-    15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE dot_emacs_gnupack_2013-12-25.el
-    15/05/18_13:33:48: copy_tree   LOCAL  <- REMOTE real-auto-save
-    15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE real-auto-save-master
-    15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE ensime
-    15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE scala-mode2
-    15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE helm-master
-    15/05/18_13:45:21: files: --- old; +++ now
-        {
-    +      "Name" : "lisp",
-    +      "dryrun" : true,
-    +      "except" : "(~$|^#|^~\\$|\\.[lL][nN][kK]$)",
-    +            "local" : "/d/gnupack_devel-11.00/home/lib/emacs/lisp",
-    +            "remote" : "//ueda-pc2.g01.fujitsu.local/home/lib/emacs/lisp",
-    +                  "~time" : "15/05/18 13:34:04"
-    +   },
-    +   {
-           "Name" : "0-所内",
-    @@ -53,10 +61,2 @@
-        },
-    -   {
-    -      "Name" : "lisp",
-    -      "dryrun" : true,
-    -      "except" : "(~$|^#|^~\\$|\\.[lL][nN][kK]$)",
-    -            "local" : "/d/gnupack_devel-11.00/home/lib/emacs/lisp",
-    -            "remote" : "//ueda-pc2.g01.fujitsu.local/home/lib/emacs/lisp",
-    -                        "~time" : "15/05/08 11:19:22"
-    -   },
-        {
-    
-    15/05/18_13:45:21: ---
-    15/05/18_13:45:21: LOCAL:  /d/gnupack_devel-11.00/home/lib/emacs/lisp
-    15/05/18_13:45:21: toptimestring: 150518_134521_lisp
-    15/05/18_13:45:23: copy_file (dryrun) LOCAL  -> REMOTE ueda-misc.el
-    15/05/18_13:45:23: copy_file (dryrun) LOCAL  -> REMOTE real-auto-save.el
-    15/05/18_13:45:23: copy_file (dryrun) LOCAL  -> REMOTE dot_emacs_gnupack.el
-    15/05/18_13:45:23: delete_tree  LOCAL
-                            wikipedia-mode.el
-    15/05/18_13:45:23: delete_tree  LOCAL
-                            dot_emacs_gnupack_2013-12-25.el
-    15/05/18_13:45:30: delete_tree REMOTE
-                            real-auto-save
-    15/05/18_13:45:30: delete_tree  LOCAL
-                            real-auto-save-master
-    15/05/18_13:45:30: delete_tree  LOCAL
-                            ensime
-    15/05/18_13:45:30: delete_tree  LOCAL
-                            scala-mode2
-    15/05/18_13:45:30: delete_tree  LOCAL
-                            helm-master
-    15/05/18_13:49:34: LOCAL:  /d/09-takeout/03-作業用/ビジョン来年度
+*** コピーの正常完了を確認してから _last.jsonに更新ずみを書くこと
+** dryrunしたあと、本番をすると、間違った_lastファイルの影響で、ローカルが全て正しいことになってしまう。(conflictも作らないし、余分のフォルダはリモートもローカルも消してしまう！）。
+*** _last.jsonの更新はdryrunをきちんと見ること（dryrunでは書き出さないこと）
+*** 以下ログ
+     15/05/18_13:32:53: files: --- old; +++ now
+            "except" : "(~$|^#|^~\\$|\\.[lL][nN][kK]$)",
+     -      "local" : " /d/gnupack_devel-11.00/home/lib/emacs/lisp",
+     +            "local" : "/d/gnupack_devel-11.00/home/lib/emacs/lisp",
+                  "remote" : "//ueda-pc2.g01.fujitsu.local/home/lib/emacs/lisp",
+     
+     15/05/18_13:33:44: ---
+     15/05/18_13:33:44: LOCAL:  /d/gnupack_devel-11.00/home/lib/emacs/lisp
+     15/05/18_13:33:44: toptimestring: 150518_133344_lisp
+     15/05/18_13:33:48:  CONFLICT found: ueda-misc.el (LOCAL 15/05/15 20:28:27 REMOTE 14/10/03 15:56:59 LAST [NO TIME INFO]     )
+     15/05/18_13:33:48:  rename conflict file: ueda-misc.el -> /d/gnupack_devel-11.00/home/lib/emacs/lisp/ueda-misc.conflict150518_133344.el (dryrun)
+     15/05/18_13:33:48: copy_file (dryrun) LOCAL  <- REMOTE ueda-misc.el
+     15/05/18_13:33:48:  CONFLICT found: real-auto-save.el (LOCAL 15/05/15 20:26:05 REMOTE 15/05/15 18:36:15 LAST [NO TIME INFO]     )
+     15/05/18_13:33:48:  rename conflict file: real-auto-save.el -> /d/gnupack_devel-11.00/home/lib/emacs/lisp/real-auto-save.conflict150518_133344.el (dry
+     run)
+     15/05/18_13:33:48: copy_file (dryrun) LOCAL  <- REMOTE real-auto-save.el
+     15/05/18_13:33:48:  CONFLICT found: dot_emacs_gnupack.el (LOCAL 15/05/15 20:14:27 REMOTE 15/05/08 11:29:10 LAST [NO TIME INFO]     )
+     15/05/18_13:33:48:  rename conflict file: dot_emacs_gnupack.el -> /d/gnupack_devel-11.00/home/lib/emacs/lisp/dot_emacs_gnupack.conflict150518_133344.e
+     l (dryrun)
+     15/05/18_13:33:48: copy_file (dryrun) LOCAL  <- REMOTE dot_emacs_gnupack.el
+     15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE wikipedia-mode.el
+     15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE dot_emacs_gnupack_2013-12-25.el
+     15/05/18_13:33:48: copy_tree   LOCAL  <- REMOTE real-auto-save
+     15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE real-auto-save-master
+     15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE ensime
+     15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE scala-mode2
+     15/05/18_13:33:48: copy_tree   LOCAL  -> REMOTE helm-master
+     15/05/18_13:45:21: files: --- old; +++ now
+         {
+     +      "Name" : "lisp",
+     +      "dryrun" : true,
+     +      "except" : "(~$|^#|^~\\$|\\.[lL][nN][kK]$)",
+     +            "local" : "/d/gnupack_devel-11.00/home/lib/emacs/lisp",
+     +            "remote" : "//ueda-pc2.g01.fujitsu.local/home/lib/emacs/lisp",
+     +                  "~time" : "15/05/18 13:34:04"
+     +   },
+     +   {
+            "Name" : "0-所内",
+     @@ -53,10 +61,2 @@
+         },
+     -   {
+     -      "Name" : "lisp",
+     -      "dryrun" : true,
+     -      "except" : "(~$|^#|^~\\$|\\.[lL][nN][kK]$)",
+     -            "local" : "/d/gnupack_devel-11.00/home/lib/emacs/lisp",
+     -            "remote" : "//ueda-pc2.g01.fujitsu.local/home/lib/emacs/lisp",
+     -                        "~time" : "15/05/08 11:19:22"
+     -   },
+         {
+     
+     15/05/18_13:45:21: ---
+     15/05/18_13:45:21: LOCAL:  /d/gnupack_devel-11.00/home/lib/emacs/lisp
+     15/05/18_13:45:21: toptimestring: 150518_134521_lisp
+     15/05/18_13:45:23: copy_file (dryrun) LOCAL  -> REMOTE ueda-misc.el
+     15/05/18_13:45:23: copy_file (dryrun) LOCAL  -> REMOTE real-auto-save.el
+     15/05/18_13:45:23: copy_file (dryrun) LOCAL  -> REMOTE dot_emacs_gnupack.el
+     15/05/18_13:45:23: delete_tree  LOCAL
+                             wikipedia-mode.el
+     15/05/18_13:45:23: delete_tree  LOCAL
+                             dot_emacs_gnupack_2013-12-25.el
+     15/05/18_13:45:30: delete_tree REMOTE
+                             real-auto-save
+     15/05/18_13:45:30: delete_tree  LOCAL
+                             real-auto-save-master
+     15/05/18_13:45:30: delete_tree  LOCAL
+                             ensime
+     15/05/18_13:45:30: delete_tree  LOCAL
+                             scala-mode2
+     15/05/18_13:45:30: delete_tree  LOCAL
+                             helm-master
+     15/05/18_13:49:34: LOCAL:  /d/09-takeout/03-作業用/ビジョン来年度
 ** LAST時刻を取ってから cp -p で LOCAL->REMOTE するまでの間に更新がかかると、conflictに見えてしまう。その後auto-saveできない。⇒ コピーした後のREMOTEの日付をLASTにすべき。
 ** rpassがないのに再接続をしようとして、何度も失敗する⇒ロックアウトする？
 ** 問題。sharepoint WebDAV はファイルを更新しても時刻が見えない。ここは、対象外にするか、readonlyにした方がよい。あるいは、更新はlocalだけにする。remoteでは消して作る。
@@ -80,9 +82,12 @@
 * 微修正
 ** backupのメッセージ、REMOTEは右にあるようにした方が見やすいかも
 * 拡張
+** watchrecentだけを見るモードを作り、そちらのデフォルトスリープを300、通常のサービスのデフォルトスリープを3600にしたいが、オプションの後方互換性が気になる。reloadの時はどちらもやる。
 ** もしかしたら、_originalをsync.plで作るのはやめて、mappingファイルを元に外部でやった方がよいかもしれない。例えばtakeoutlog.shの中。そうすれば shortcut.exeとの依存性を外せる。
-** サービスモードでは、最近1日以内にアップデートのかかったファイルを直接持つフォルダ（深いところ）は、記録しておいて、最優先でsyncする。その後で通常のをやる。最優先モードだけやるモードを作り、そちらのデフォルトスリープを300、通常のサービスのデフォルトスリープを3600にしたいが、オプションの後方互換性が気になる。reloadの時はどちらもやる。
-** syncスタートから最初のフォルダに入るまでが長い。特にVPNなどネットワークが遠い時に顕著。ループの最初のstatが多すぎる気がする。確認して可能なら改善
+** syncスタートから最初のフォルダに入るまでが長い。特にVPNなどネットワークが遠い時に顕著。ループの最初のstatが多すぎる気がする。確認して可能なら改善 LOG DEBUG入れてみた
+*** files() (re-stat)
+*** attr()
+*** sync_mtime2()
 ** ループの最初のfilesの時刻ソートの際に、remoteが切れていたら、最外周のループに戻る
 *** ディレクトリの時刻合わせをする（touchする）コマンド。robocopyでいいかも。知らない間にリモートのディレクトリの時刻が変わると、そこを触らない限り、ずれたままになる。
 *** backup は連続でしないようにしたい。前のバックアップをlastに記録しておこうか？書き込みに失敗した時に最後のバージョンがあったほうがうれしいか？
@@ -97,6 +102,8 @@
 ** system() を使うのはやめよう。cygwinに依存したくない。といいつつ、diffとかsedとか気楽に使っている...
 *** Algorihm::Diff を使えばdiffはできそう
 * 確認済み
+** サービスモードでは、最近1日以内にアップデートのかかったファイルを直接持つフォルダ（深いところ）は、記録しておいて、最優先でsyncする。その後で通常のをやる。最優先モードだけやるモードを作り、そちらのデフォルトスリープを300、通常のサービスのデフォルトスリープを3600にしたいが、オプションの後方互換性が気になる。reloadの時はどちらもやる。
+*** watchrecentオプションで、監視する最大数を指定する。最優先モードだけはついていない
 ** daylimitなしで動くことは確認
 ** confのパスに漢字を含んでいても動く
 ** //host/dir はコピーできるか
