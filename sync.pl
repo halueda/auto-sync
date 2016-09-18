@@ -513,6 +513,39 @@ sub match_2 ( $$ ) {
 }
 
 ###
+### update_now/ get_latest
+###
+{
+  my %updated;
+
+  sub update_now ($$) {
+    my ($key, $value) =@_;
+    $updated{$key} =  [ time(), $value ];
+  }
+
+  sub sort_0 (@) {
+    return sort {  $b->[0] <=> $a->[0] } @_;
+  }
+
+  sub get_latest ($) {
+    my ($count) = @_;
+    my @values = values(%updated);
+    @values = sort_0(@values);
+    if ( $count > 0 and $#values > $count-1  ) {
+      @values = @values[0..$count-1];
+      # あんまり長くなりすぎないように削る。削らなくても用は足りる。
+      my ( $oldest_time ) = $values[-1]->[0];
+      foreach my $k ( keys( %updated ) ) {
+	if ( $updated{$k}->[0] < $oldest_time ) {
+	  delete $updated{$k}
+	}
+      }
+    }
+    return( map { $_->[1] } @values );
+  }
+}
+
+###
 ### local/remote string util
 ###
 
@@ -619,6 +652,18 @@ sub dir_string ( $$ ) {
     return sprintf("%-6s %-9s %s\n", $from_top, $mes, $from_sub);
 }
 
+sub to_local_remote ( $$ ) {
+    my ($from, $to) = @_;
+    my ($from_top, $from_sub) = dir_part( $from );
+    my ($to_top,   $to_sub)   = dir_part( $to );
+    if      ( $to_top     eq "LOCAL" or $from_top eq "REMOTE" ) {
+      return ($to, $from);
+    } elsif ( $from_top   eq "LOCAL" or $to_top   eq "REMOTE" ) {
+      return ($from, $to);
+    } else {
+      return ($from, $to);
+    }
+}
 ###
 ### file utils
 ###
@@ -855,6 +900,14 @@ sub newer_date ( $$ ) {
 ###
 ### file/dir operation
 ###
+sub updated_dir ( @ ) {
+  my ( $local, $remote ) = @_;
+  my $sync = {};
+  opts_overwrite( \%OPTS, $sync );
+  $sync->{local} = $local;
+  $sync->{remote} = $remote;
+  update_now($local, $sync);
+}
 
 
 sub copy_file ( $$$$$;$$ ) {
@@ -865,6 +918,11 @@ sub copy_file ( $$$$$;$$ ) {
 
     return if ( ! newer_date( $src_attr, $day_limit ) );
     my ($src) = attr_file($src_attr);
+
+    use File::Basename;
+    my $srcdir = dirname($src);
+    my ($l, $r) = to_local_remote( $srcdir, $dstdir );
+    updated_dir( $l, $r );
 
     # copy overwrite, copy timestamp (cp -p); or out_LOG if dryrun
     if ( $OPTS{dryrun} ) {
@@ -914,6 +972,16 @@ sub copy_tree ( $$$$ ) { #$!$!$! $local_filesを引数に取るべき
     }
     return if ( ! newer_date( $src_attr, $day_limit ) );
     my ($src) = attr_file($src_attr);
+
+    if (attr_type($src_attr) eq 'dir') {
+      my ($l, $r) = to_local_remote( $src, "$dstdir/$file"  );
+      updated_dir( $l, $r );
+    } else {
+      use File::Basename;
+      my $srcdir = dirname($src);
+      my ($l, $r) = to_local_remote( $srcdir, $dstdir );
+      updated_dir( $l, $r );
+    }
 
     # copy recursivly, preserve timestamp (cp -rp); or out_LOG if dryrun
     if ( $OPTS{dryrun} ) {
@@ -1708,7 +1776,7 @@ sub sync ( $$$ ) {
 	      out_LOG $INFO, "making $local/_original.lnk\n";
 	      # ここは外部コマンドをハードコーディングするのではなくて、linkcommand オプションで指定したものを実行する
 	      # そうすることでリンクを作るだけでなく、originalsに即座に追加出来るようになる
-	      # linkcommand remotepath originalpath と呼び出す。どちらもcygwinパスを引数にするので、Windowsパスコマンドにするのは、linkcommandの責任
+	      # linkcommand remotepath $local/_original と呼び出す。どちらもcygwinパスを引数にするので、Windowsパスコマンドにするのは、linkcommandの責任
 #	      symlink $remote, "$local/_original";	# windowsからアクセスできない。そもそも .lnk がついてないといけない
 	      my $originalpath = `/bin/cygpath -w '$local/_original.lnk'`;   # まずパス変換
 	      chomp $originalpath;
@@ -1847,6 +1915,9 @@ sub reload_conf ( ;$$ ) {
 
     STDERR->autoflush(1);
 
+
+    ## filename encoding
+    ## this could be in file_complete() in conf_final()
     use Encode qw(encode decode);
     foreach my $sync ( @files ) {
 	my (%OPTS_orig) = (%OPTS);
@@ -1857,7 +1928,6 @@ sub reload_conf ( ;$$ ) {
 	%OPTS = %OPTS_orig;
     }
 
-
     # @files を remoteまたはlocalの新しい方が先に来るようにソートしてから
     @files = map {
       my $remote_attr = eval { attr($_->{remote}) };
@@ -1866,6 +1936,7 @@ sub reload_conf ( ;$$ ) {
       $_ -> {attr} = choose_newer( $remote_attr, $local_attr );
 #      my ($top,$part) = dir_part( $_->{local} );
 #      my $dir = dirname($part);
+      # Name は file_complete に持っていった方がよいかも
       my $dir = basename( $_->{local} );
       $_->{Name} = "$dir";
       $_->{"~time"} = attr_mtime_str( $_->{attr} );
@@ -1876,6 +1947,18 @@ sub reload_conf ( ;$$ ) {
     @files = sort { defined_older($a->{attr}, $b->{attr}) } @files;
     @files = map { delete $_->{attr}; $_; } @files;
 
+    ## @files = ( {configのfilesに書いてあるもの remote=>filename, local=>filename, day_limit=>option },... )
+    ## update_now する時に、$OPTS の中身＋remoteとlocalだけ書き換えて入れておけばよい。コピーするのを忘れないこと。
+
+    @files = ( (
+		grep {
+		  file_complete($_, {}, \%OPTS);
+		  my $dir = basename( $_->{local} );
+		  $_->{Name} = "$dir";
+		  $_->{"~time"} = attr_mtime_str( attr($_->{local})  );
+		} ( get_latest($OPTS{watchrecent}) )
+	       ) ,
+	       @files );
 
     # configurationが変わったら診断出力
 
@@ -1916,6 +1999,27 @@ sub reload_conf ( ;$$ ) {
       my $next_mapping_text = write_jsonfile($OPTS{mapping}, \%mapping, $last_mapping_text);
       if ( $next_mapping_text ne $last_mapping_text ) {
 	out_LOG $INFO, "wrote mapping file: %s\n", $OPTS{mapping};
+
+# mappinghook を呼ぶのは、mapping.json作った直後では早すぎる。まだ_original.lnkができてない
+# syncの中で、_original.lnk を mapping.json を作った直後に作るようにする。今の_original.lnkを作っている、sync_dirの中はやらない
+# 更新フラグが変にならないかだけが心配...
+
+# 以下でよいはずだが。symlinkコマンドがちゃんと働くかと、パス名がこれで正しいかを確認すること
+#	for my $local (keys($%mapping)) {
+#	  my $original = "$local/_original";
+#	  my $conf = "$local/_conf.txt";
+#	  my $remote = $mapping{ $key };
+#	  if ( not -e $original ) {
+#	    out_LOG $INFO, "making $local/_original.lnk\n";
+#	    symlink $remote, $original ;
+#	  } elsif ( -e $conf and newer($conf, $original)) {
+#	    out_LOG $INFO, "updating $local/_original.lnk\n";
+#	    unlink $original;
+#	    symlink $remote, $original ;
+#	  }
+#	}
+
+
 	if ( $OPTS{mappinghook} ) {
 	  out_LOG $INFO, "excute mappinghook: %s\n", $OPTS{mappinghook};
 	  eval { system( $OPTS{mappinghook} ) } ;
