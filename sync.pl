@@ -1980,8 +1980,8 @@ sub reload_conf ( ;$$ ) {
 #    out_LOG $INFO, "files: %s\n", $new_FILES_json_print
     if ( $old_files_json ) {
       if ($new_files_json ne $old_files_json) {
-	$new_FILES_json_print =~ s/"(rpass|ruser|verbose|rdustbox|ldustbox|)" : [^\n]*\n//g;
-	$old_files_json_print =~ s/"(rpass|ruser|verbose|rdustbox|ldustbox|)" : [^\n]*\n//g;
+	$new_FILES_json_print =~ s/ *"(rpass|ruser|verbose|rdustbox|ldustbox|)" : [^\n]*\n//g;
+	$old_files_json_print =~ s/ *"(rpass|ruser|verbose|rdustbox|ldustbox|)" : [^\n]*\n//g;
 	out_LOG $INFO, "files: %s\n", diff_log("/tmp/files", $old_files_json_print, $new_FILES_json_print);
       }
     } else {
