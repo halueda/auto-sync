@@ -529,6 +529,9 @@ sub match_2 ( $$ ) {
 
   sub get_latest ($) {
     my ($count) = @_;
+    if (not defined($count)) {
+      return ();
+    }
     my @values = values(%updated);
     @values = sort_0(@values);
     if ( $count > 0 and $#values > $count-1  ) {
@@ -1735,6 +1738,26 @@ sub sync_dir_2 ( $$$$ ) {
 }
 
 
+sub check_and_make_original_lnk ( $$ ) {
+  my ( $local, $remote ) = @_;
+  if ( not -e "$local/_original.lnk" ) { # or -e ./_sync_conf.txt and "$local/_original.lnk" is older than ./_sync_conf.txt
+    out_LOG $INFO, "making $local/_original.lnk\n";
+    # ここは外部コマンドをハードコーディングするのではなくて、linkcommand オプションで指定したものを実行する
+    # そうすることでリンクを作るだけでなく、originalsに即座に追加出来るようになる
+    #	      symlink $remote, "$local/_original";	# windowsからアクセスできない。そもそも .lnk がついてないといけない
+    my $originalpath = `/bin/cygpath -w '$local/_original.lnk'`;   # まずパス変換
+    chomp $originalpath;
+    my $remotepath = `/bin/cygpath -w '$remote'`;   # まずパス変換
+    chomp $remotepath;
+    use FindBin qw($Bin);
+    my $cmd = "$Bin/Shortcut.CMD /t:'$remotepath' '$originalpath'";
+    out_LOG $DEBUG, "lnkcmd: %s\n", $cmd;
+    system( $cmd ); # 外部コマンドを使う。
+    return 1;
+  } else {
+    return undef;
+  }
+}
 sub sync ( $$$ );
 
 sub sync ( $$$ ) {
@@ -1772,23 +1795,10 @@ sub sync ( $$$ ) {
 				  attr => $attr };
 	    sync_dir_2( $remote, $local, $this_dir_attr, $day_limit);
 
-	    if ( not -e "$local/_original.lnk" ) { # or -e ./_sync_conf.txt and "$local/_original.lnk" is older than ./_sync_conf.txt
-	      out_LOG $INFO, "making $local/_original.lnk\n";
-	      # ここは外部コマンドをハードコーディングするのではなくて、linkcommand オプションで指定したものを実行する
-	      # そうすることでリンクを作るだけでなく、originalsに即座に追加出来るようになる
-	      # linkcommand remotepath $local/_original と呼び出す。どちらもcygwinパスを引数にするので、Windowsパスコマンドにするのは、linkcommandの責任
-#	      symlink $remote, "$local/_original";	# windowsからアクセスできない。そもそも .lnk がついてないといけない
-	      my $originalpath = `/bin/cygpath -w '$local/_original.lnk'`;   # まずパス変換
-	      chomp $originalpath;
-	      my $remotepath = `/bin/cygpath -w '$remote'`;   # まずパス変換
-	      chomp $remotepath;
-	      use FindBin qw($Bin);
-	      my $cmd = "$Bin/Shortcut.CMD /t:'$remotepath' '$originalpath'";
-	      out_LOG $DEBUG, "lnkcmd: %s\n", $cmd;
-	      system( $cmd ); # 外部コマンドを使う。
-#	      sync_mtime2( $this_dir_attr, $local ) ;	# this_dir_attr が arrayref じゃないと怒られる
-	      sync_mtime2( $attr, $local ) ; 	# こっちかな？
-	    }
+#	    if ( check_and_make_original_lnk( $local, $remote ) ) {
+#	      sync_mtime2( $attr, $local ) ; 	# こっちかな？
+#	    }
+
 #	    out_LOG $INFO, "top dir sync: newer  %s\n", attr_mtime_str($attr);
 #	    out_LOG $INFO, "top dir sync: local  %s -> %s\n", attr_mtime_str($this_dir_attr->{local_attr}),  attr_mtime_str(attr( $local ));
 #	    out_LOG $INFO, "top dir sync: remote %s -> %s\n", attr_mtime_str($this_dir_attr->{remote_attr}), attr_mtime_str(attr( $remote ));
@@ -1991,6 +2001,9 @@ sub reload_conf ( ;$$ ) {
     # pattern compile
     #$OPTS{except} = qr/$OPTS{except}/;
 
+    foreach my $f ( @files ) {
+      check_and_make_original_lnk( $f->{local}, $f->{remote} );
+    }
     if ( $OPTS{mapping} ) {
       my %mapping;
       foreach my $f ( @files ) {
@@ -2000,25 +2013,8 @@ sub reload_conf ( ;$$ ) {
       if ( $next_mapping_text ne $last_mapping_text ) {
 	out_LOG $INFO, "wrote mapping file: %s\n", $OPTS{mapping};
 
-# mappinghook を呼ぶのは、mapping.json作った直後では早すぎる。まだ_original.lnkができてない
 # syncの中で、_original.lnk を mapping.json を作った直後に作るようにする。今の_original.lnkを作っている、sync_dirの中はやらない
 # 更新フラグが変にならないかだけが心配...
-
-# 以下でよいはずだが。symlinkコマンドがちゃんと働くかと、パス名がこれで正しいかを確認すること
-#	for my $local (keys($%mapping)) {
-#	  my $original = "$local/_original";
-#	  my $conf = "$local/_conf.txt";
-#	  my $remote = $mapping{ $key };
-#	  if ( not -e $original ) {
-#	    out_LOG $INFO, "making $local/_original.lnk\n";
-#	    symlink $remote, $original ;
-#	  } elsif ( -e $conf and newer($conf, $original)) {
-#	    out_LOG $INFO, "updating $local/_original.lnk\n";
-#	    unlink $original;
-#	    symlink $remote, $original ;
-#	  }
-#	}
-
 
 	if ( $OPTS{mappinghook} ) {
 	  out_LOG $INFO, "excute mappinghook: %s\n", $OPTS{mappinghook};
