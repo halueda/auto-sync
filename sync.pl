@@ -1800,7 +1800,8 @@ sub check_and_make_original_lnk ( $$ ) {
     chomp $remotepath;
     use FindBin qw($Bin);
     my $cmd = "$Bin/Shortcut.CMD /t:'$remotepath' '$originalpath'";
-    out_LOG $DEBUG, "lnkcmd: %s\n", $cmd;
+    out_LOG $INFO, "lnkcmd: %s\n", $cmd;
+#    out_LOG $DEBUG, "lnkcmd: %s\n", $cmd;
     system( $cmd ); # 外部コマンドを使う。
     return 1;
   } else {
@@ -1882,12 +1883,14 @@ sub diff_log ( $$$ ) {
   write_file( $nowfile, $now);
 
   my $diff = `/bin/diff --minimal --horizon-lines=7 -U 1 $oldfile $nowfile | /bin/sed 1,3d`; # possibly try diff --minimal
+#  my $diff = `/bin/diff --minimal --horizon-lines=20 -U 1 $oldfile $nowfile | /bin/sed 1,3d`; # possibly try diff --minimal
   system("/bin/rm $oldfile $nowfile");
   return "--- old; +++ now\n" . $diff;
 }
 
 my $lastStatuslogFile;
 my $last_mapping_text = "";
+my $old_recent_json_print = "";
 
 sub reload_conf ( ;$$ ) {
     my ($mes, $old_files) = @_;
@@ -2006,18 +2009,11 @@ sub reload_conf ( ;$$ ) {
     @files = sort { defined_older($a->{attr}, $b->{attr}) } @files;
     @files = map { delete $_->{attr}; $_; } @files;
 
+    ## 後で使うために configに記載されていた @files を保存
+    my @files_in_conf = @files;
+
     ## @files = ( {configのfilesに書いてあるもの remote=>filename, local=>filename, day_limit=>option },... )
     ## update_now する時に、$OPTS の中身＋remoteとlocalだけ書き換えて入れておけばよい。コピーするのを忘れないこと。
-
-    @files = ( (
-		grep {
-		  file_complete($_, {}, \%OPTS);
-		  my $dir = basename( $_->{local} );
-		  $_->{Name} = "$dir";
-		  $_->{"~time"} = attr_mtime_str( attr($_->{local})  );
-		} ( get_latest($OPTS{watchrecent}) )
-	       ) ,
-	       @files );
 
     # configurationが変わったら診断出力
 
@@ -2047,23 +2043,43 @@ sub reload_conf ( ;$$ ) {
       out_LOG $INFO, "files: %s\n",  $new_FILES_json_print;
     }
 
+    ## get_latest() で取ってきて、正しく加工して追加
+    my @recentfiles = grep {
+      file_complete($_, {}, \%OPTS);
+      my $dir = basename( $_->{local} );
+      $_->{Name} = "$dir";
+      $_->{"~time"} = attr_mtime_str( attr($_->{local})  );
+    } ( get_latest($OPTS{watchrecent}) );
+
+    ## 今までの＠filesの前に追加
+    push @files, @recentfiles;
+
+    ## recent の変化も診断出力
+    my @recentfiles_simple = map { $_->{local} } @recentfiles;
+    my $new_recent_json_print = JSON->new->pretty->canonical->encode(\@recentfiles_simple);
+    if ( $old_recent_json_print ne $new_recent_json_print ) {
+	out_LOG $INFO, "files: %s\n", diff_log("/tmp/recent", $old_recent_json_print, $new_recent_json_print);
+    }
+    $old_recent_json_print = $new_recent_json_print;
+
     # pattern compile
     #$OPTS{except} = qr/$OPTS{except}/;
 
-    foreach my $f ( @files ) {
+    foreach my $f ( @files_in_conf ) {
       check_and_make_original_lnk( $f->{local}, $f->{remote} );
     }
     if ( $OPTS{mapping} ) {
       my %mapping;
-      foreach my $f ( @files ) {
+      foreach my $f ( @files_in_conf ) {
 	$mapping{ $f->{local} } =  $f->{remote};
       }
       my $next_mapping_text = write_jsonfile($OPTS{mapping}, \%mapping, $last_mapping_text);
       if ( $next_mapping_text ne $last_mapping_text ) {
 	out_LOG $INFO, "wrote mapping file: %s\n", $OPTS{mapping};
 
-# syncの中で、_original.lnk を mapping.json を作った直後に作るようにする。今の_original.lnkを作っている、sync_dirの中はやらない
-# 更新フラグが変にならないかだけが心配...
+	# syncの中で、_original.lnk を mapping.json を作った直後に作るようにする。
+	# 今の_original.lnkを作っている、sync_dirの中はやらない
+	# 更新フラグが変にならないかだけが心配...
 
 	if ( $OPTS{mappinghook} ) {
 	  out_LOG $INFO, "excute mappinghook: %s\n", $OPTS{mappinghook};
