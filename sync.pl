@@ -992,67 +992,6 @@ sub copy_file ( $$$$$;$$ ) {
     }
 }
 
-sub copy_new_tree ( $$$$$$$ ) {
-    my ( $file, $src_attr, $dst, $dstdir, $day_limit, $dustbox, $last_files ) = @_;
-    return copy_file($file, $src_attr, $dst, $dstdir, $day_limit, $dustbox, $last_files);
-#
-#    if ( match_2( $file, $OPTS{except} ) ) {
-#	return;
-#    }
-#    return if ( ! newer_date( $src_attr, $day_limit ) );
-#    my ($src) = attr_file($src_attr);
-#
-##    if (attr_type($src_attr) eq 'dir') {
-##      my ($l, $r) = to_local_remote( $src, "$dstdir/$file"  );
-##      updated_dir( $l, $r );
-##    } else {
-#      use File::Basename;
-#      my $srcdir = dirname($src);
-#      my ($l, $r) = to_local_remote( $srcdir, $dstdir );
-#      updated_dir( $l, $r );
-##    }
-#
-#    # copy recursivly, preserve timestamp (cp -rp); or out_LOG if dryrun
-#    if ( $OPTS{dryrun} ) {
-#	out_LOG $INFO, "copy_new_tree   %s (dryrun)", from_to_string($src, $dstdir);
-#    } else {
-#	out_LOG $INFO, "copy_new_tree   %s", from_to_string($src, $dstdir);
-#	if ($OPTS{log} ) {
-#	  # ' を含むファイル名は失敗する
-#	    my $dsttmp = sprintf("%s/.#%s", $dst, $file);
-#	    $src    =~ s/'/'"'"'/g;
-#	    $dstdir =~ s/'/'"'"'/g;
-#	    $dsttmp =~ s/'/'"'"'/g;
-#	    # exit status は tee のものになるので、cpに失敗してもdieできない
-##	    system("/bin/cp -r --preserve=timestamps,links '$src' '$dstdir' 2>&1 | /usr/bin/tee -a $OPTS{log}") == 0
-##	      or die "copy_new_tree failed: $src $dstdir: $!";
-##	    system("robocopy /e /dcopy:t '$src' '$dstdir' 2>&1 | /usr/bin/tee -a $OPTS{log}") == 0
-##	    $dstdir/fileにしないといけない。$srcがフォルダじゃないといけない
-#
-#	    $?=0;
-##	    my $msg = `/bin/cp -r --preserve=timestamps,links '$src' '$dstdir' 2>&1 `;
-#	    my $msg = `/bin/cp -r --force --preserve=timestamps,links '$src' '$dsttmp'  </dev/null 2>&1 && /bin/mv --force '$dsttmp' '$dstdir' </dev/null 2>&1`;
-#	    my $status = $?;
-#	    print STDERR $msg;
-#	    print LOG $msg;
-#	    if ( $status ) {
-#	      die "copy_new_tree failed: $src $dst : $!";
-#	    }
-#
-#
-#	} else {
-#	    system("/bin/cp", "-r", "--preserve=timestamps,links", $src, $dstdir) ==0
-#	      or die "copy_dir failed: $src $dstdir: $!";
-##	    system("robocopy /e /dcopy:t '$src' '$dstdir'") == 0
-##	    $dstdir/fileにしないといけない。$srcがフォルダじゃないといけない
-#	}
-#      $last_files->{$file} = $src_attr;
-#      my ($dirpart) = dir_part($dst);
-#      $last_files->{"/UPDATE_$dirpart"} = 1;
-#      $last_files->{"/last_update"} = 1;
-#    }
-}
-
 
 {
     my $lasttime = 0;
@@ -1555,16 +1494,10 @@ sub sync_dir_2 ( $$$$ ) {
 
       if ( ! $last_attr ) {
 	# remoteで作った
-      out_LOG $DEBUG, " remote exists, local not   :%s (no last)\n", $file;
-#	if ( defined( $day_limit ) ) {
-	  copy_file( $file, $remote_attr, $local_file, $local, $day_limit, dustbox($OPTS{ldustbox}), $last_files );
-	  # $last_filesはどうすればよい？特にday_limitが絡んだら => 中で更新してもらう
-	  # $last_files->{$file} = $remote_attr;
-#	} else {
-#	  copy_new_tree( $file, $remote_attr, $local_file, $local, $day_limit, dustbox($OPTS{ldustbox}), $last_files );
-#	  $last_files->{$file} = $remote_attr;
-#	  $last_files->{"/last_update"} = 1;
-#	}
+	out_LOG $DEBUG, " remote exists, local not   :%s (no last)\n", $file;
+	copy_file( $file, $remote_attr, $local_file, $local, $day_limit, dustbox($OPTS{ldustbox}), $last_files );
+	# $last_filesはどうすればよい？特にday_limitが絡んだら => 中で更新してもらう
+	# $last_files->{$file} = $remote_attr;
       } else {
 	# remoteだけにあるが、localの親のディレクトリの方がremoteの親より新しい
 	# localを消した
@@ -1586,14 +1519,7 @@ sub sync_dir_2 ( $$$$ ) {
       if ( ! $last_attr ) {
 	out_LOG $DEBUG, " remote not   , local exists:%s (no last)\n", $file;
 	# localで作った
-	if ( 1 ) { #テスト中
-	  copy_file( $file, $local_attr, $remote_file, $remote, $day_limit, undef, $last_files );
-	} else {
-	copy_new_tree( $file, $local_attr, $remote_file, $remote, $day_limit, undef, $last_files  );
-#	$last_files->{$file} = $local_attr;
-#	$last_files->{"/UPDATE_REMOTE"} = 1;
-#	$last_files->{"/last_update"} = 1;
-        }
+	copy_file( $file, $local_attr, $remote_file, $remote, $day_limit, undef, $last_files );
       } else {
 	out_LOG $DEBUG, " remote not   , local exists:%s (be last)\n", $file;
 	# remoteを消した
@@ -1699,7 +1625,7 @@ sub sync_dir_2 ( $$$$ ) {
 	  }
 	  # $last_files->{$file} = $remote_attr;
 	} else {
-	  copy_new_tree( $file, $remote_attr, $local_file, $local, $day_limit, undef, $last_files  );
+	  copy_file( $file, $remote_attr, $local_file, $local, $day_limit, undef, $last_files  );
 #	  $last_files->{$file} = $remote_attr;
 #	  $last_files->{"/UPDATE_LOCAL"} = 1;
 #	  $last_files->{"/last_update"} = 1;
@@ -1739,7 +1665,7 @@ sub sync_dir_2 ( $$$$ ) {
       # 有   有   無	remoteを消した
       if ( ! $last_attr ) {
       out_LOG $DEBUG, " remote not   , local exists:%s/ (no last)\n", $file;
-	copy_new_tree( $file, $local_attr, $remote_file, $remote, undef, undef, $last_files  );
+	copy_file( $file, $local_attr, $remote_file, $remote, undef, undef, $last_files  );
 #	$last_files->{$file} = $local_attr;
 #	$last_files->{"/UPDATE_REMOTE"} = 1;
 #	$last_files->{"/last_update"} = 1;
