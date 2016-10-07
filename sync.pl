@@ -1816,17 +1816,19 @@ sub diff_log ( $$$ ) {
 
 my $lastStatuslogFile;
 my $last_mapping_text = "";
-my $old_recent_json_print = "";
+my $last_recent_json_print = "";
+my $last_files_json = "";
+my $last_files_json_print = "";
 
 sub reload_conf ( ;$$ ) {
     my ($mes, $old_files) = @_;
     my ($myconf);
 
-    my $old_files_json = defined($old_files) ?
-	JSON->new->canonical->encode($old_files) :
-	    '';
-    my $old_files_json_print = defined($old_files) ?
-	JSON->new->pretty->canonical->encode($old_files) :
+#    my $last_files_json = defined($old_files) ?
+#	JSON->new->canonical->encode($old_files) :
+#	    '';
+#    my $last_files_json_print = defined($old_files) ?
+#	JSON->new->pretty->canonical->encode($old_files) :
 	    '';
     my $old_OPTS_json  = JSON->new->canonical->encode(\%OPTS);
 
@@ -1954,23 +1956,25 @@ sub reload_conf ( ;$$ ) {
 #    $new_FILES_json_print =~ s/\n\s*"rpass"[^\n]*\n/\n/g;
 
     $new_FILES_json_print =~ s/"rpass" : "[^"]*"/"rpass" : "*****"/g;
-    $old_files_json_print =~ s/"rpass" : "[^"]*"/"rpass" : "*****"/g;
+    $last_files_json_print =~ s/"rpass" : "[^"]*"/"rpass" : "*****"/g;
 
     out_LOG $INFO, "opts: %s\n", $new_OPTS_json_print
 	if $new_OPTS_json ne $old_OPTS_json;
 #    out_LOG $INFO, "files: %s\n", $new_FILES_json_print
-    if ( $old_files_json ) {
-      if ($new_files_json ne $old_files_json) {
+    if ( $last_files_json ) {
+      if ($new_files_json ne $last_files_json) {
 	$new_FILES_json_print =~ s/ *"(rpass|ruser|verbose|rdustbox|ldustbox|)" : [^\n]*\n//g;
-	$old_files_json_print =~ s/ *"(rpass|ruser|verbose|rdustbox|ldustbox|)" : [^\n]*\n//g;
-	out_LOG $INFO, "files: %s\n", diff_log("/tmp/files", $old_files_json_print, $new_FILES_json_print);
+	$last_files_json_print =~ s/ *"(rpass|ruser|verbose|rdustbox|ldustbox|)" : [^\n]*\n//g;
+	out_LOG $INFO, "files: %s\n", diff_log("/tmp/files", $last_files_json_print, $new_FILES_json_print);
       }
     } else {
       out_LOG $INFO, "files: %s\n",  $new_FILES_json_print;
     }
+    $last_files_json_print = $new_FILES_json_print;
+    $last_files_json = $new_files_json;
 
     ## get_latest() で取ってきて、正しく加工して追加
-    my @recentfiles = grep {
+    my @recentdirs = grep {
       file_complete($_, {}, \%OPTS);
       my $dir = basename( $_->{local} );
       $_->{Name} = "$dir";
@@ -1978,15 +1982,15 @@ sub reload_conf ( ;$$ ) {
     } ( get_latest($OPTS{watchrecent}) );
 
     ## 今までの＠filesの前に追加
-    push @files, @recentfiles;
+    push @files, @recentdirs;
 
     ## recent の変化も診断出力
-    my @recentfiles_simple = map { $_->{local} } @recentfiles;
-    my $new_recent_json_print = JSON->new->pretty->canonical->encode(\@recentfiles_simple);
-    if ( $old_recent_json_print ne $new_recent_json_print ) {
-	out_LOG $INFO, "files: %s\n", diff_log("/tmp/recent", $old_recent_json_print, $new_recent_json_print);
+    my @recentdirs_simple = map { $_->{local} } @recentdirs;
+    my $new_recent_json_print = JSON->new->pretty->canonical->encode(\@recentdirs_simple);
+    if ( $last_recent_json_print ne $new_recent_json_print ) {
+	out_LOG $INFO, "recentdirs: %s\n", diff_log("/tmp/recent", $last_recent_json_print, $new_recent_json_print);
     }
-    $old_recent_json_print = $new_recent_json_print;
+    $last_recent_json_print = $new_recent_json_print;
 
     # pattern compile
     #$OPTS{except} = qr/$OPTS{except}/;
