@@ -33,4 +33,6 @@ Windows XPについていた suitcase や offline folder に近い用途です�
 ・cygwin(cp, mv, rm)
 ・Shortcut.CMD http://www.vector.co.jp/soft/winnt/amuse/se420337.html
 
+通常の利用には十分な品質ですが、網羅的なテストはされておらず、タイミング障害などはまだかなり残っていますので、利用にあたっては自己責任でお願いいたします。（ごみ箱を使うことで万一の場合にも回復できますので利用を強く推奨します）
+
 以上
